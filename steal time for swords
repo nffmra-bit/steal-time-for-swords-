@@ -1,0 +1,123 @@
+UI.AddTab("Steal Time for Swords", function(tab)
+    local sec = tab:Section("Settings", "Left")
+
+    local isOrbCollecting = false
+    local orbCoroutine = nil
+
+    sec:Toggle("orbCollect", "Orb Collect", false, function(enabled)
+        isOrbCollecting = enabled
+
+        if enabled then
+            orbCoroutine = task.spawn(function()
+                while isOrbCollecting do
+                    local currentOrbs = {}
+
+                    for _, object in pairs(workspace:GetDescendants()) do
+                        if object:IsA("BasePart") and object.Name == "Orb" then
+                            table.insert(currentOrbs, object)
+                        end
+                    end
+
+                    if #currentOrbs > 0 then
+                        local player = game.Players.LocalPlayer
+                        local character = player.Character
+
+                        if character and character:FindFirstChild("HumanoidRootPart") then
+                            local rootPart = character.HumanoidRootPart
+
+                            for _, orb in pairs(currentOrbs) do
+                                if not isOrbCollecting then
+                                    break
+                                end
+
+                                if orb and orb.Parent then
+                                    rootPart.CFrame = orb.CFrame
+                                    task.wait(0.05)
+                                end
+                            end
+                        end
+                    end
+
+                    task.wait(0.5)
+                end
+            end)
+        end
+    end)
+
+    local isKeyZoneTping = false
+    local keyZoneCoroutine = nil
+
+    sec:Toggle("keyzoneTP", "KeyZone TP", false, function(enabled)
+        isKeyZoneTping = enabled
+
+        if enabled then
+            keyZoneCoroutine = task.spawn(function()
+                local currentKeyZone = nil
+                local isInKeyZone = false
+                local player = game.Players.LocalPlayer
+
+                while isKeyZoneTping do
+                    local character = player.Character
+
+                    if not character then
+                        task.wait(0.5)
+                        continue
+                    end
+
+                    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+
+                    if not humanoidRootPart then
+                        task.wait(0.5)
+                        continue
+                    end
+
+                    local keyZones = {}
+                    local activeZonesFolder = workspace:FindFirstChild("ActiveZones")
+
+                    if activeZonesFolder then
+                        for _, obj in ipairs(activeZonesFolder:GetChildren()) do
+                            if obj:IsA("Part") and obj.Name:find("KeyZone") then
+                                table.insert(keyZones, obj)
+                            end
+                        end
+                    end
+
+                    if #keyZones == 0 then
+                        if isInKeyZone then
+                            isInKeyZone = false
+                            currentKeyZone = nil
+                        end
+                    else
+                        local playerInKeyZone = false
+
+                        for _, keyZone in ipairs(keyZones) do
+                            if keyZone:IsA("Part") then
+                                local distance = (humanoidRootPart.Position - keyZone.Position).Magnitude
+
+                                if distance < 10 then
+                                    playerInKeyZone = true
+                                    currentKeyZone = keyZone
+                                    isInKeyZone = true
+                                    break
+                                end
+                            end
+                        end
+
+                        if not playerInKeyZone and #keyZones > 0 then
+                            local targetKeyZone = keyZones[1]
+
+                            if targetKeyZone and targetKeyZone:IsA("Part") and targetKeyZone.Parent == activeZonesFolder then
+                                local position = targetKeyZone.Position + Vector3.new(0, 5, 0)
+                                humanoidRootPart.CFrame = CFrame.new(position.X, position.Y, position.Z)
+                                currentKeyZone = targetKeyZone
+                                isInKeyZone = false
+                            end
+                        end
+                    end
+
+                    task.wait(0.3)
+                end
+            end)
+        end
+    end)
+end)
