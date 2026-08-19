@@ -5,9 +5,14 @@ UI.AddTab("Steal Time for Swords", function(tab)
     local orbCoroutine = nil
 
     sec:Toggle("orbCollect", "Orb Collect", false, function(enabled)
-        isOrbCollecting = enabled
-
         if enabled then
+            if isOrbCollecting then
+                return
+            end
+            
+            isOrbCollecting = true
+            print("ORB COLLECT ON")
+            
             orbCoroutine = task.spawn(function()
                 while isOrbCollecting do
                     local currentOrbs = {}
@@ -22,25 +27,41 @@ UI.AddTab("Steal Time for Swords", function(tab)
                         local player = game.Players.LocalPlayer
                         local character = player.Character
 
-                        if character and character:FindFirstChild("HumanoidRootPart") then
-                            local rootPart = character.HumanoidRootPart
+                        if character then
+                            local rootPart = character:FindFirstChild("HumanoidRootPart")
 
-                            for _, orb in pairs(currentOrbs) do
-                                if not isOrbCollecting then
-                                    break
-                                end
+                            if rootPart then
+                                for _, orb in pairs(currentOrbs) do
+                                    if not isOrbCollecting then
+                                        return
+                                    end
 
-                                if orb and orb.Parent then
-                                    rootPart.CFrame = orb.CFrame
-                                    task.wait(0.05)
+                                    if orb and orb.Parent then
+                                        rootPart.CFrame = orb.CFrame
+                                        task.wait(0.1)
+                                    end
                                 end
                             end
                         end
                     end
 
-                    task.wait(0.5)
+                    task.wait(1)
                 end
             end)
+            
+        else
+            if not isOrbCollecting then
+                return
+            end
+            
+            isOrbCollecting = false
+            
+            if orbCoroutine then
+                task.cancel(orbCoroutine)
+                orbCoroutine = nil
+            end
+            
+            print("ORB COLLECT OFF")
         end
     end)
 
@@ -48,9 +69,14 @@ UI.AddTab("Steal Time for Swords", function(tab)
     local keyZoneCoroutine = nil
 
     sec:Toggle("keyzoneTP", "KeyZone TP", false, function(enabled)
-        isKeyZoneTping = enabled
-
         if enabled then
+            if isKeyZoneTping then
+                return
+            end
+            
+            isKeyZoneTping = true
+            print("KEYZONE TP ON")
+            
             keyZoneCoroutine = task.spawn(function()
                 local currentKeyZone = nil
                 local isInKeyZone = false
@@ -103,12 +129,14 @@ UI.AddTab("Steal Time for Swords", function(tab)
                             end
                         end
 
-                        if not playerInKeyZone and #keyZones > 0 then
+                        if not playerInKeyZone then
                             local targetKeyZone = keyZones[1]
 
                             if targetKeyZone and targetKeyZone:IsA("Part") and targetKeyZone.Parent == activeZonesFolder then
                                 local position = targetKeyZone.Position + Vector3.new(0, 5, 0)
+
                                 humanoidRootPart.CFrame = CFrame.new(position.X, position.Y, position.Z)
+
                                 currentKeyZone = targetKeyZone
                                 isInKeyZone = false
                             end
@@ -118,6 +146,20 @@ UI.AddTab("Steal Time for Swords", function(tab)
                     task.wait(0.3)
                 end
             end)
+            
+        else
+            if not isKeyZoneTping then
+                return
+            end
+            
+            isKeyZoneTping = false
+            
+            if keyZoneCoroutine then
+                task.cancel(keyZoneCoroutine)
+                keyZoneCoroutine = nil
+            end
+            
+            print("KEYZONE TP OFF")
         end
     end)
 end)
