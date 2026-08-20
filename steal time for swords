@@ -1,18 +1,106 @@
 UI.AddTab("Steal Time for Swords", function(tab)
-    local sec = tab:Section("Settings", "Left")
+
+    local sec = tab:Section("Cases", "Left")
+
+    local caseDelay = 1
+
+    sec:SliderFloat("caseDelay", "Case Delay", 0.1, 10, caseDelay, "%.1f", function(v)
+        caseDelay = v
+    end)
+
+    local function createCaseToggle(id, name, remote)
+        local enabled = false
+        local thread = nil
+
+        sec:Toggle(id, name, false, function(state)
+            enabled = state
+
+            if enabled then
+                if thread then
+                    return
+                end
+
+                thread = task.spawn(function()
+                    while enabled do
+                        remote:FireServer()
+                        task.wait(caseDelay)
+                    end
+
+                    thread = nil
+                end)
+            else
+                enabled = false
+            end
+        end)
+    end
+
+    createCaseToggle(
+        "rainbowCase",
+        "Rainbow Case",
+        game.ReplicatedStorage.RandomEventForCasesThree
+    )
+
+    createCaseToggle(
+        "frostCase",
+        "Frost Case",
+        game.ReplicatedStorage.RandomEventForCasesThreefrost
+    )
+
+    createCaseToggle(
+        "katanaCase",
+        "Katana Case",
+        game.ReplicatedStorage.RandomEventForCasesThreekatana
+    )
+
+    createCaseToggle(
+        "oblivionCase",
+        "Oblivion Case",
+        game.ReplicatedStorage.RandomEventForCasesThreeobli
+    )
+
+    createCaseToggle(
+        "neoCase",
+        "Neo Case",
+        game.ReplicatedStorage.RandomEventForCasesThreeneo
+    )
+
+    createCaseToggle(
+        "violetCase",
+        "Violet Case",
+        game.ReplicatedStorage.RandomEventForCasesThreevio
+    )
+
+    createCaseToggle(
+        "ghoulCase",
+        "Ghoul Case",
+        game.ReplicatedStorage.RandomEventForCasesThreeghoul
+    )
+
+    createCaseToggle(
+        "summerCase",
+        "Summer Case",
+        game.ReplicatedStorage.RandomEventForCasesThreesummer
+    )
+
+    createCaseToggle(
+        "oceanCase",
+        "Ocean Case",
+        game.ReplicatedStorage.RandomEventForCasesThreeocean
+    )
+
+    local orbSec = tab:Section("Orb", "Left")
 
     local isOrbCollecting = false
     local orbCoroutine = nil
 
-    sec:Toggle("orbCollect", "Orb Collect", false, function(enabled)
+    orbSec:Toggle("orbCollect", "Orb Collect", false, function(enabled)
+        isOrbCollecting = enabled
+
         if enabled then
-            if isOrbCollecting then
+            if orbCoroutine then
                 return
             end
-            
-            isOrbCollecting = true
-            print("ORB COLLECT ON")
-            
+
             orbCoroutine = task.spawn(function()
                 while isOrbCollecting do
                     local currentOrbs = {}
@@ -23,63 +111,401 @@ UI.AddTab("Steal Time for Swords", function(tab)
                         end
                     end
 
-                    if #currentOrbs > 0 then
-                        local player = game.Players.LocalPlayer
-                        local character = player.Character
+                    local player = game.Players.LocalPlayer
+                    local character = player.Character
+                    local rootPart = character and character:FindFirstChild("HumanoidRootPart")
 
-                        if character then
-                            local rootPart = character:FindFirstChild("HumanoidRootPart")
+                    if rootPart then
+                        for _, orb in pairs(currentOrbs) do
+                            if not isOrbCollecting then
+                                break
+                            end
 
-                            if rootPart then
-                                for _, orb in pairs(currentOrbs) do
-                                    if not isOrbCollecting then
-                                        return
-                                    end
-
-                                    if orb and orb.Parent then
-                                        rootPart.CFrame = orb.CFrame
-                                        task.wait(0.1)
-                                    end
-                                end
+                            if orb and orb.Parent then
+                                rootPart.CFrame = orb.CFrame
+                                task.wait(0.05)
                             end
                         end
                     end
 
-                    task.wait(1)
+                    task.wait(0.5)
                 end
+
+                orbCoroutine = nil
             end)
+        end
+    end)
+
+    local isLegitOrbCollecting = false
+    local legitOrbCoroutine = nil
+
+    local W = 0x57
+    local A = 0x41
+    local S = 0x53
+    local D = 0x44
+
+    local SCAN_INTERVAL = 2
+    local REACH_DISTANCE = 3
+    local MOVE_INTERVAL = 0.08
+
+    local targetOrb = nil
+    local orbQueue = {}
+    local knownOrbs = {}
+
+    local lastScan = 0
+    local lastMove = 0
+    local lastDebug = 0
+
+    local lastPosition = nil
+    local stuckTimer = 0
+    local stuckThreshold = 0.5
+    local lastMoveDirection = nil
+    local isStuck = false
+
+    local function releaseMovement()
+        pcall(keyrelease, W)
+        pcall(keyrelease, A)
+        pcall(keyrelease, S)
+        pcall(keyrelease, D)
+    end
+
+    local function press(key)
+        pcall(keypress, key)
+    end
+
+    local function getRoot()
+        local character = game.Players.LocalPlayer.Character
+        if not character then
+            return nil
+        end
+        return character:FindFirstChild("HumanoidRootPart")
+    end
+
+    local function orbCollected(orb)
+        if not orb then
+            return true
+        end
+        if not orb.Parent then
+            return true
+        end
+        if orb:IsA("BasePart") then
+            local size = orb.Size
+            if size.X <= 0.05 and size.Y <= 0.05 and size.Z <= 0.05 then
+                return true
+            end
+        end
+        return false
+    end
+
+    local function scanOrbs()
+        local root = getRoot()
+        if not root then
+            return
+        end
+
+        local newOrbs = {}
+
+        for _, object in ipairs(workspace:GetDescendants()) do
+            if object:IsA("BasePart") and object.Name == "Orb" and object.Parent and not knownOrbs[object] then
+                knownOrbs[object] = true
+                table.insert(newOrbs, object)
+            end
+        end
+
+        table.sort(newOrbs, function(a, b)
+            if not a.Parent then
+                return false
+            end
+            if not b.Parent then
+                return true
+            end
+            local da = (a.Position - root.Position).Magnitude
+            local db = (b.Position - root.Position).Magnitude
+            return da < db
+        end)
+
+        for _, orb in ipairs(newOrbs) do
+            table.insert(orbQueue, orb)
+        end
+    end
+
+    local function getNextOrb()
+        while #orbQueue > 0 do
+            local orb = table.remove(orbQueue, 1)
+            if orb and orb.Parent and not orbCollected(orb) then
+                return orb
+            end
+            knownOrbs[orb] = nil
+        end
+        return nil
+    end
+
+    local function moveToward(targetPosition, root)
+        local camera = workspace.CurrentCamera
+        if not camera then
+            return
+        end
+
+        local offset = targetPosition - root.Position
+        local targetDirection = Vector3.new(offset.X, 0, offset.Z)
+
+        if targetDirection.Magnitude < 0.1 then
+            releaseMovement()
+            return
+        end
+
+        targetDirection = targetDirection.Unit
+
+        local forward = camera.CFrame.LookVector
+        local right = camera.CFrame.RightVector
+
+        forward = Vector3.new(forward.X, 0, forward.Z)
+        right = Vector3.new(right.X, 0, right.Z)
+
+        if forward.Magnitude > 0 then
+            forward = forward.Unit
+        end
+        if right.Magnitude > 0 then
+            right = right.Unit
+        end
+
+        local forwardAmount = targetDirection:Dot(forward)
+        local rightAmount = targetDirection:Dot(right)
+
+        releaseMovement()
+
+        if forwardAmount > 0.25 then
+            press(W)
+            lastMoveDirection = "forward"
+        elseif forwardAmount < -0.25 then
+            press(S)
+            lastMoveDirection = "backward"
+        end
+
+        if rightAmount > 0.25 then
+            press(D)
+            lastMoveDirection = "right"
+        elseif rightAmount < -0.25 then
+            press(A)
+            lastMoveDirection = "left"
+        end
+    end
+
+    local function checkStuck(root)
+        if not root then
+            return false
+        end
+        
+        local currentPos = root.Position
+        
+        if lastPosition then
+            local distance = (currentPos - lastPosition).Magnitude
             
-        else
-            if not isOrbCollecting then
-                return
+            if distance < 0.1 then
+                stuckTimer = stuckTimer + 0.02
+            else
+                stuckTimer = 0
+                isStuck = false
             end
             
+            if stuckTimer >= stuckThreshold then
+                if not isStuck then
+                    isStuck = true
+                end
+                return true
+            end
+        end
+        
+        lastPosition = currentPos
+        return false
+    end
+
+    local function moveForwardLastDirection()
+        releaseMovement()
+        
+        if lastMoveDirection == "forward" then
+            press(W)
+        elseif lastMoveDirection == "backward" then
+            press(S)
+        elseif lastMoveDirection == "right" then
+            press(D)
+        elseif lastMoveDirection == "left" then
+            press(A)
+        else
+            press(W)
+        end
+        
+        task.wait(0.15)
+        releaseMovement()
+        
+        stuckTimer = 0
+        isStuck = false
+        lastPosition = nil
+    end
+
+    orbSec:Toggle("legitOrbCollect", "Legit Orb Collecting", false, function(enabled)
+        isLegitOrbCollecting = enabled
+
+        if enabled then
+            if legitOrbCoroutine then
+                return
+            end
+
+            legitOrbCoroutine = task.spawn(function()
+                while isLegitOrbCollecting do
+                    local root = getRoot()
+
+                    if not root then
+                        releaseMovement()
+                        targetOrb = nil
+                        orbQueue = {}
+                        knownOrbs = {}
+                        stuckTimer = 0
+                        isStuck = false
+                        lastPosition = nil
+                        task.wait(0.5)
+                        continue
+                    end
+
+                    if checkStuck(root) then
+                        moveForwardLastDirection()
+                        task.wait(0.05)
+                        continue
+                    end
+
+                    if os.clock() - lastScan >= SCAN_INTERVAL then
+                        lastScan = os.clock()
+                        scanOrbs()
+                    end
+
+                    if not targetOrb then
+                        targetOrb = getNextOrb()
+                        if targetOrb then
+                            stuckTimer = 0
+                            isStuck = false
+                            lastPosition = nil
+                        end
+                    end
+
+                    if not targetOrb then
+                        releaseMovement()
+                        task.wait(0.2)
+                        continue
+                    end
+
+                    if orbCollected(targetOrb) then
+                        local reallyCollected = false
+                        local checkCount = 0
+                        
+                        while checkCount < 3 and not reallyCollected do
+                            task.wait(0.05)
+                            checkCount = checkCount + 1
+                            
+                            if not targetOrb or not targetOrb.Parent or orbCollected(targetOrb) then
+                                reallyCollected = true
+                                break
+                            end
+                        end
+                        
+                        if not reallyCollected and targetOrb and targetOrb.Parent then
+                            moveForwardLastDirection()
+                            
+                            task.wait(0.05)
+                            if not targetOrb or not targetOrb.Parent or orbCollected(targetOrb) then
+                                reallyCollected = true
+                            end
+                        end
+
+                        if targetOrb then
+                            knownOrbs[targetOrb] = nil
+                        end
+                        
+                        if reallyCollected then
+                            targetOrb = nil
+                            stuckTimer = 0
+                            isStuck = false
+                            lastPosition = nil
+                        else
+                            local oldOrb = targetOrb
+                            targetOrb = nil
+                            if oldOrb and oldOrb.Parent then
+                                table.insert(orbQueue, 1, oldOrb)
+                            end
+                            stuckTimer = 0
+                            isStuck = false
+                            lastPosition = nil
+                        end
+
+                        releaseMovement()
+                        task.wait(0.05)
+                        continue
+                    end
+
+                    local distance = (targetOrb.Position - root.Position).Magnitude
+
+                    if distance <= REACH_DISTANCE then
+                        releaseMovement()
+                        task.wait(0.05)
+                        continue
+                    end
+
+                    if os.clock() - lastMove >= MOVE_INTERVAL then
+                        lastMove = os.clock()
+                        moveToward(targetOrb.Position, root)
+                    end
+
+                    task.wait(0.02)
+                end
+
+                releaseMovement()
+                targetOrb = nil
+                orbQueue = {}
+                knownOrbs = {}
+                lastPosition = nil
+                stuckTimer = 0
+                isStuck = false
+                legitOrbCoroutine = nil
+            end)
+        else
+            releaseMovement()
+            targetOrb = nil
+            orbQueue = {}
+            knownOrbs = {}
+            lastPosition = nil
+            stuckTimer = 0
+            isStuck = false
+            if legitOrbCoroutine then
+                task.cancel(legitOrbCoroutine)
+                legitOrbCoroutine = nil
+            end
+        end
+    end)
+
+    orbSec:Button("Orb Collect OFF", function()
+        if isOrbCollecting then
             isOrbCollecting = false
-            
             if orbCoroutine then
                 task.cancel(orbCoroutine)
                 orbCoroutine = nil
             end
-            
-            print("ORB COLLECT OFF")
         end
     end)
 
+    local zoneSec = tab:Section("Zones", "Left")
+
     local isKeyZoneTping = false
     local keyZoneCoroutine = nil
+    local currentKeyZone = nil
 
-    sec:Toggle("keyzoneTP", "KeyZone TP", false, function(enabled)
+    zoneSec:Toggle("keyzoneTP", "Key Zone TP", false, function(enabled)
+        isKeyZoneTping = enabled
+
         if enabled then
-            if isKeyZoneTping then
+            if keyZoneCoroutine then
                 return
             end
-            
-            isKeyZoneTping = true
-            print("KEYZONE TP ON")
-            
+
             keyZoneCoroutine = task.spawn(function()
-                local currentKeyZone = nil
-                local isInKeyZone = false
                 local player = game.Players.LocalPlayer
 
                 while isKeyZoneTping do
@@ -108,58 +534,648 @@ UI.AddTab("Steal Time for Swords", function(tab)
                         end
                     end
 
-                    if #keyZones == 0 then
-                        if isInKeyZone then
-                            isInKeyZone = false
-                            currentKeyZone = nil
+                    table.sort(keyZones, function(a, b)
+                        local distA = (a.Position - humanoidRootPart.Position).Magnitude
+                        local distB = (b.Position - humanoidRootPart.Position).Magnitude
+                        return distA < distB
+                    end)
+
+                    for _, keyZone in ipairs(keyZones) do
+                        if not isKeyZoneTping then
+                            break
                         end
-                    else
-                        local playerInKeyZone = false
 
-                        for _, keyZone in ipairs(keyZones) do
-                            if keyZone:IsA("Part") then
+                        if keyZone and keyZone:IsA("Part") and keyZone.Parent == activeZonesFolder then
+                            currentKeyZone = keyZone
+                            local position = keyZone.Position + Vector3.new(0, 5, 0)
+                            humanoidRootPart.CFrame = CFrame.new(position.X, position.Y, position.Z)
+                            
+                            local isInRange = false
+                            while isKeyZoneTping and keyZone and keyZone.Parent == activeZonesFolder do
                                 local distance = (humanoidRootPart.Position - keyZone.Position).Magnitude
-
-                                if distance < 10 then
-                                    playerInKeyZone = true
-                                    currentKeyZone = keyZone
-                                    isInKeyZone = true
+                                if distance <= 10 then
+                                    isInRange = true
                                     break
                                 end
+                                task.wait(0.1)
                             end
-                        end
-
-                        if not playerInKeyZone then
-                            local targetKeyZone = keyZones[1]
-
-                            if targetKeyZone and targetKeyZone:IsA("Part") and targetKeyZone.Parent == activeZonesFolder then
-                                local position = targetKeyZone.Position + Vector3.new(0, 5, 0)
-
-                                humanoidRootPart.CFrame = CFrame.new(position.X, position.Y, position.Z)
-
-                                currentKeyZone = targetKeyZone
-                                isInKeyZone = false
+                            
+                            while isKeyZoneTping and isInRange and keyZone and keyZone.Parent == activeZonesFolder do
+                                task.wait(0.5)
                             end
+                            
+                            currentKeyZone = nil
                         end
                     end
 
                     task.wait(0.3)
                 end
-            end)
-            
-        else
-            if not isKeyZoneTping then
-                return
-            end
-            
-            isKeyZoneTping = false
-            
-            if keyZoneCoroutine then
-                task.cancel(keyZoneCoroutine)
+
                 keyZoneCoroutine = nil
-            end
-            
-            print("KEYZONE TP OFF")
+                currentKeyZone = nil
+            end)
+        else
+            currentKeyZone = nil
         end
     end)
+
+    local isTimeZoneTping = false
+    local timeZoneCoroutine = nil
+    local currentTimeZone = nil
+
+    zoneSec:Toggle("timezoneTP", "Time Zone TP", false, function(enabled)
+        isTimeZoneTping = enabled
+
+        if enabled then
+            if timeZoneCoroutine then
+                return
+            end
+
+            timeZoneCoroutine = task.spawn(function()
+                local player = game.Players.LocalPlayer
+
+                while isTimeZoneTping do
+                    local character = player.Character
+
+                    if not character then
+                        task.wait(0.5)
+                        continue
+                    end
+
+                    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+
+                    if not humanoidRootPart then
+                        task.wait(0.5)
+                        continue
+                    end
+
+                    local timeZones = {}
+                    local activeZonesFolder = workspace:FindFirstChild("ActiveZones")
+
+                    if activeZonesFolder then
+                        for _, obj in ipairs(activeZonesFolder:GetChildren()) do
+                            if obj:IsA("Part") and obj.Name:find("TimeZone") then
+                                table.insert(timeZones, obj)
+                            end
+                        end
+                    end
+
+                    table.sort(timeZones, function(a, b)
+                        local distA = (a.Position - humanoidRootPart.Position).Magnitude
+                        local distB = (b.Position - humanoidRootPart.Position).Magnitude
+                        return distA < distB
+                    end)
+
+                    for _, timeZone in ipairs(timeZones) do
+                        if not isTimeZoneTping then
+                            break
+                        end
+
+                        if timeZone and timeZone:IsA("Part") and timeZone.Parent == activeZonesFolder then
+                            currentTimeZone = timeZone
+                            local position = timeZone.Position + Vector3.new(0, 5, 0)
+                            humanoidRootPart.CFrame = CFrame.new(position.X, position.Y, position.Z)
+                            
+                            local isInRange = false
+                            while isTimeZoneTping and timeZone and timeZone.Parent == activeZonesFolder do
+                                local distance = (humanoidRootPart.Position - timeZone.Position).Magnitude
+                                if distance <= 10 then
+                                    isInRange = true
+                                    break
+                                end
+                                task.wait(0.1)
+                            end
+                            
+                            while isTimeZoneTping and isInRange and timeZone and timeZone.Parent == activeZonesFolder do
+                                task.wait(0.5)
+                            end
+                            
+                            currentTimeZone = nil
+                        end
+                    end
+
+                    task.wait(0.3)
+                end
+
+                timeZoneCoroutine = nil
+                currentTimeZone = nil
+            end)
+        else
+            currentTimeZone = nil
+        end
+    end)
+
+    local isXPZoneTping = false
+    local xpZoneCoroutine = nil
+    local currentXPZone = nil
+
+    zoneSec:Toggle("xpzoneTP", "XP Zone TP", false, function(enabled)
+        isXPZoneTping = enabled
+
+        if enabled then
+            if xpZoneCoroutine then
+                return
+            end
+
+            xpZoneCoroutine = task.spawn(function()
+                local player = game.Players.LocalPlayer
+
+                while isXPZoneTping do
+                    local character = player.Character
+
+                    if not character then
+                        task.wait(0.5)
+                        continue
+                    end
+
+                    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+
+                    if not humanoidRootPart then
+                        task.wait(0.5)
+                        continue
+                    end
+
+                    local xpZones = {}
+                    local activeZonesFolder = workspace:FindFirstChild("ActiveZones")
+
+                    if activeZonesFolder then
+                        for _, obj in ipairs(activeZonesFolder:GetChildren()) do
+                            if obj:IsA("Part") and obj.Name:find("XPZone") then
+                                table.insert(xpZones, obj)
+                            end
+                        end
+                    end
+
+                    table.sort(xpZones, function(a, b)
+                        local distA = (a.Position - humanoidRootPart.Position).Magnitude
+                        local distB = (b.Position - humanoidRootPart.Position).Magnitude
+                        return distA < distB
+                    end)
+
+                    for _, xpZone in ipairs(xpZones) do
+                        if not isXPZoneTping then
+                            break
+                        end
+
+                        if xpZone and xpZone:IsA("Part") and xpZone.Parent == activeZonesFolder then
+                            currentXPZone = xpZone
+                            local position = xpZone.Position + Vector3.new(0, 5, 0)
+                            humanoidRootPart.CFrame = CFrame.new(position.X, position.Y, position.Z)
+                            
+                            local isInRange = false
+                            while isXPZoneTping and xpZone and xpZone.Parent == activeZonesFolder do
+                                local distance = (humanoidRootPart.Position - xpZone.Position).Magnitude
+                                if distance <= 10 then
+                                    isInRange = true
+                                    break
+                                end
+                                task.wait(0.1)
+                            end
+                            
+                            while isXPZoneTping and isInRange and xpZone and xpZone.Parent == activeZonesFolder do
+                                task.wait(0.5)
+                            end
+                            
+                            currentXPZone = nil
+                        end
+                    end
+
+                    task.wait(0.3)
+                end
+
+                xpZoneCoroutine = nil
+                currentXPZone = nil
+            end)
+        else
+            currentXPZone = nil
+        end
+    end)
+
+    local function legitReleaseMovement()
+        pcall(keyrelease, W)
+        pcall(keyrelease, A)
+        pcall(keyrelease, S)
+        pcall(keyrelease, D)
+    end
+
+    local function legitPress(key)
+        pcall(keypress, key)
+    end
+
+    local function legitGetRoot()
+        local character = game.Players.LocalPlayer.Character
+        if not character then
+            return nil
+        end
+        return character:FindFirstChild("HumanoidRootPart")
+    end
+
+    local function legitZoneExists(zone)
+        if not zone then
+            return false
+        end
+        if not zone.Parent then
+            return false
+        end
+        return true
+    end
+
+    local function legitMoveToward(targetPosition, root)
+        local camera = workspace.CurrentCamera
+        if not camera then
+            return
+        end
+
+        local offset = targetPosition - root.Position
+        local targetDirection = Vector3.new(offset.X, 0, offset.Z)
+
+        if targetDirection.Magnitude < 0.1 then
+            legitReleaseMovement()
+            return
+        end
+
+        targetDirection = targetDirection.Unit
+
+        local forward = camera.CFrame.LookVector
+        local right = camera.CFrame.RightVector
+
+        forward = Vector3.new(forward.X, 0, forward.Z)
+        right = Vector3.new(right.X, 0, right.Z)
+
+        if forward.Magnitude > 0 then
+            forward = forward.Unit
+        end
+        if right.Magnitude > 0 then
+            right = right.Unit
+        end
+
+        local forwardAmount = targetDirection:Dot(forward)
+        local rightAmount = targetDirection:Dot(right)
+
+        legitReleaseMovement()
+
+        if forwardAmount > 0.25 then
+            legitPress(W)
+        elseif forwardAmount < -0.25 then
+            legitPress(S)
+        end
+
+        if rightAmount > 0.25 then
+            legitPress(D)
+        elseif rightAmount < -0.25 then
+            legitPress(A)
+        end
+    end
+
+    local isLegitKeyZone = false
+    local legitKeyZoneCoroutine = nil
+    local legitKeyZoneTarget = nil
+    local legitKeyZoneQueue = {}
+    local knownKeyZones = {}
+    local legitKeyLastScan = 0
+    local legitKeyLastMove = 0
+    local legitKeyZoneInRange = false
+
+    zoneSec:Toggle("legitKeyzone", "Legit Key Zone", false, function(enabled)
+        isLegitKeyZone = enabled
+
+        if enabled then
+            if legitKeyZoneCoroutine then
+                return
+            end
+
+            legitKeyZoneCoroutine = task.spawn(function()
+                while isLegitKeyZone do
+                    local root = legitGetRoot()
+
+                    if not root then
+                        legitReleaseMovement()
+                        legitKeyZoneTarget = nil
+                        legitKeyZoneQueue = {}
+                        knownKeyZones = {}
+                        legitKeyZoneInRange = false
+                        task.wait(0.5)
+                        continue
+                    end
+
+                    if os.clock() - legitKeyLastScan >= SCAN_INTERVAL then
+                        legitKeyLastScan = os.clock()
+                        local activeZonesFolder = workspace:FindFirstChild("ActiveZones")
+                        if activeZonesFolder then
+                            for _, obj in ipairs(activeZonesFolder:GetChildren()) do
+                                if obj:IsA("Part") and obj.Name:find("KeyZone") and obj.Parent and not knownKeyZones[obj] then
+                                    knownKeyZones[obj] = true
+                                    table.insert(legitKeyZoneQueue, obj)
+                                end
+                            end
+                        end
+                    end
+
+                    if not legitKeyZoneTarget then
+                        while #legitKeyZoneQueue > 0 do
+                            local zone = table.remove(legitKeyZoneQueue, 1)
+                            if zone and zone.Parent and legitZoneExists(zone) then
+                                legitKeyZoneTarget = zone
+                                break
+                            end
+                            knownKeyZones[zone] = nil
+                        end
+                    end
+
+                    if not legitKeyZoneTarget then
+                        legitReleaseMovement()
+                        task.wait(0.2)
+                        continue
+                    end
+
+                    if not legitZoneExists(legitKeyZoneTarget) then
+                        knownKeyZones[legitKeyZoneTarget] = nil
+                        legitKeyZoneTarget = nil
+                        legitReleaseMovement()
+                        task.wait(0.1)
+                        continue
+                    end
+
+                    local distance = (legitKeyZoneTarget.Position - root.Position).Magnitude
+
+                    if distance <= 10 then
+                        if not legitKeyZoneInRange then
+                            legitKeyZoneInRange = true
+                        end
+                        legitReleaseMovement()
+                        
+                        while isLegitKeyZone and legitKeyZoneTarget and legitKeyZoneTarget.Parent == workspace:FindFirstChild("ActiveZones") do
+                            task.wait(0.5)
+                        end
+                        
+                        knownKeyZones[legitKeyZoneTarget] = nil
+                        legitKeyZoneTarget = nil
+                        legitKeyZoneInRange = false
+                        continue
+                    else
+                        legitKeyZoneInRange = false
+                    end
+
+                    if os.clock() - legitKeyLastMove >= MOVE_INTERVAL then
+                        legitKeyLastMove = os.clock()
+                        legitMoveToward(legitKeyZoneTarget.Position, root)
+                    end
+
+                    task.wait(0.02)
+                end
+
+                legitReleaseMovement()
+                legitKeyZoneTarget = nil
+                legitKeyZoneQueue = {}
+                knownKeyZones = {}
+                legitKeyZoneInRange = false
+                legitKeyZoneCoroutine = nil
+            end)
+        else
+            legitReleaseMovement()
+            legitKeyZoneTarget = nil
+            legitKeyZoneQueue = {}
+            knownKeyZones = {}
+            legitKeyZoneInRange = false
+            if legitKeyZoneCoroutine then
+                task.cancel(legitKeyZoneCoroutine)
+                legitKeyZoneCoroutine = nil
+            end
+        end
+    end)
+
+    local isLegitTimeZone = false
+    local legitTimeZoneCoroutine = nil
+    local legitTimeZoneTarget = nil
+    local legitTimeZoneQueue = {}
+    local knownTimeZones = {}
+    local legitTimeLastScan = 0
+    local legitTimeLastMove = 0
+    local legitTimeZoneInRange = false
+
+    zoneSec:Toggle("legitTimezone", "Legit Time Zone", false, function(enabled)
+        isLegitTimeZone = enabled
+
+        if enabled then
+            if legitTimeZoneCoroutine then
+                return
+            end
+
+            legitTimeZoneCoroutine = task.spawn(function()
+                while isLegitTimeZone do
+                    local root = legitGetRoot()
+
+                    if not root then
+                        legitReleaseMovement()
+                        legitTimeZoneTarget = nil
+                        legitTimeZoneQueue = {}
+                        knownTimeZones = {}
+                        legitTimeZoneInRange = false
+                        task.wait(0.5)
+                        continue
+                    end
+
+                    if os.clock() - legitTimeLastScan >= SCAN_INTERVAL then
+                        legitTimeLastScan = os.clock()
+                        local activeZonesFolder = workspace:FindFirstChild("ActiveZones")
+                        if activeZonesFolder then
+                            for _, obj in ipairs(activeZonesFolder:GetChildren()) do
+                                if obj:IsA("Part") and obj.Name:find("TimeZone") and obj.Parent and not knownTimeZones[obj] then
+                                    knownTimeZones[obj] = true
+                                    table.insert(legitTimeZoneQueue, obj)
+                                end
+                            end
+                        end
+                    end
+
+                    if not legitTimeZoneTarget then
+                        while #legitTimeZoneQueue > 0 do
+                            local zone = table.remove(legitTimeZoneQueue, 1)
+                            if zone and zone.Parent and legitZoneExists(zone) then
+                                legitTimeZoneTarget = zone
+                                break
+                            end
+                            knownTimeZones[zone] = nil
+                        end
+                    end
+
+                    if not legitTimeZoneTarget then
+                        legitReleaseMovement()
+                        task.wait(0.2)
+                        continue
+                    end
+
+                    if not legitZoneExists(legitTimeZoneTarget) then
+                        knownTimeZones[legitTimeZoneTarget] = nil
+                        legitTimeZoneTarget = nil
+                        legitReleaseMovement()
+                        task.wait(0.1)
+                        continue
+                    end
+
+                    local distance = (legitTimeZoneTarget.Position - root.Position).Magnitude
+
+                    if distance <= 10 then
+                        if not legitTimeZoneInRange then
+                            legitTimeZoneInRange = true
+                        end
+                        legitReleaseMovement()
+                        
+                        while isLegitTimeZone and legitTimeZoneTarget and legitTimeZoneTarget.Parent == workspace:FindFirstChild("ActiveZones") do
+                            task.wait(0.5)
+                        end
+                        
+                        knownTimeZones[legitTimeZoneTarget] = nil
+                        legitTimeZoneTarget = nil
+                        legitTimeZoneInRange = false
+                        continue
+                    else
+                        legitTimeZoneInRange = false
+                    end
+
+                    if os.clock() - legitTimeLastMove >= MOVE_INTERVAL then
+                        legitTimeLastMove = os.clock()
+                        legitMoveToward(legitTimeZoneTarget.Position, root)
+                    end
+
+                    task.wait(0.02)
+                end
+
+                legitReleaseMovement()
+                legitTimeZoneTarget = nil
+                legitTimeZoneQueue = {}
+                knownTimeZones = {}
+                legitTimeZoneInRange = false
+                legitTimeZoneCoroutine = nil
+            end)
+        else
+            legitReleaseMovement()
+            legitTimeZoneTarget = nil
+            legitTimeZoneQueue = {}
+            knownTimeZones = {}
+            legitTimeZoneInRange = false
+            if legitTimeZoneCoroutine then
+                task.cancel(legitTimeZoneCoroutine)
+                legitTimeZoneCoroutine = nil
+            end
+        end
+    end)
+
+    local isLegitXPZone = false
+    local legitXPZoneCoroutine = nil
+    local legitXPZoneTarget = nil
+    local legitXPZoneQueue = {}
+    local knownXPZones = {}
+    local legitXPLastScan = 0
+    local legitXPLastMove = 0
+    local legitXPZoneInRange = false
+
+    zoneSec:Toggle("legitXpzone", "Legit XP Zone", false, function(enabled)
+        isLegitXPZone = enabled
+
+        if enabled then
+            if legitXPZoneCoroutine then
+                return
+            end
+
+            legitXPZoneCoroutine = task.spawn(function()
+                while isLegitXPZone do
+                    local root = legitGetRoot()
+
+                    if not root then
+                        legitReleaseMovement()
+                        legitXPZoneTarget = nil
+                        legitXPZoneQueue = {}
+                        knownXPZones = {}
+                        legitXPZoneInRange = false
+                        task.wait(0.5)
+                        continue
+                    end
+
+                    if os.clock() - legitXPLastScan >= SCAN_INTERVAL then
+                        legitXPLastScan = os.clock()
+                        local activeZonesFolder = workspace:FindFirstChild("ActiveZones")
+                        if activeZonesFolder then
+                            for _, obj in ipairs(activeZonesFolder:GetChildren()) do
+                                if obj:IsA("Part") and obj.Name:find("XPZone") and obj.Parent and not knownXPZones[obj] then
+                                    knownXPZones[obj] = true
+                                    table.insert(legitXPZoneQueue, obj)
+                                end
+                            end
+                        end
+                    end
+
+                    if not legitXPZoneTarget then
+                        while #legitXPZoneQueue > 0 do
+                            local zone = table.remove(legitXPZoneQueue, 1)
+                            if zone and zone.Parent and legitZoneExists(zone) then
+                                legitXPZoneTarget = zone
+                                break
+                            end
+                            knownXPZones[zone] = nil
+                        end
+                    end
+
+                    if not legitXPZoneTarget then
+                        legitReleaseMovement()
+                        task.wait(0.2)
+                        continue
+                    end
+
+                    if not legitZoneExists(legitXPZoneTarget) then
+                        knownXPZones[legitXPZoneTarget] = nil
+                        legitXPZoneTarget = nil
+                        legitReleaseMovement()
+                        task.wait(0.1)
+                        continue
+                    end
+
+                    local distance = (legitXPZoneTarget.Position - root.Position).Magnitude
+
+                    if distance <= 10 then
+                        if not legitXPZoneInRange then
+                            legitXPZoneInRange = true
+                        end
+                        legitReleaseMovement()
+                        
+                        while isLegitXPZone and legitXPZoneTarget and legitXPZoneTarget.Parent == workspace:FindFirstChild("ActiveZones") do
+                            task.wait(0.5)
+                        end
+                        
+                        knownXPZones[legitXPZoneTarget] = nil
+                        legitXPZoneTarget = nil
+                        legitXPZoneInRange = false
+                        continue
+                    else
+                        legitXPZoneInRange = false
+                    end
+
+                    if os.clock() - legitXPLastMove >= MOVE_INTERVAL then
+                        legitXPLastMove = os.clock()
+                        legitMoveToward(legitXPZoneTarget.Position, root)
+                    end
+
+                    task.wait(0.02)
+                end
+
+                legitReleaseMovement()
+                legitXPZoneTarget = nil
+                legitXPZoneQueue = {}
+                knownXPZones = {}
+                legitXPZoneInRange = false
+                legitXPZoneCoroutine = nil
+            end)
+        else
+            legitReleaseMovement()
+            legitXPZoneTarget = nil
+            legitXPZoneQueue = {}
+            knownXPZones = {}
+            legitXPZoneInRange = false
+            if legitXPZoneCoroutine then
+                task.cancel(legitXPZoneCoroutine)
+                legitXPZoneCoroutine = nil
+            end
+        end
+    end)
+
 end)
