@@ -1,5 +1,4 @@
-UI.AddTab("Steal Time for Swords", function(tab)
-
+UI.AddTab("Steal TIME for Swords", function(tab)
     local sec = tab:Section("Cases", "Left")
 
     local caseDelay = 1
@@ -36,56 +35,80 @@ UI.AddTab("Steal Time for Swords", function(tab)
 
     createCaseToggle(
         "rainbowCase",
-        "Rainbow Case",
+        "Rainbow Case 50K Time",
         game.ReplicatedStorage.RandomEventForCasesThree
     )
 
     createCaseToggle(
         "frostCase",
-        "Frost Case",
+        "Frost Case 1M  Time",
         game.ReplicatedStorage.RandomEventForCasesThreefrost
     )
 
     createCaseToggle(
         "katanaCase",
-        "Katana Case",
+        "Katana Case 1B  Time",
         game.ReplicatedStorage.RandomEventForCasesThreekatana
     )
 
     createCaseToggle(
         "oblivionCase",
-        "Oblivion Case",
+        "Oblivion Case 10T Time",
         game.ReplicatedStorage.RandomEventForCasesThreeobli
     )
 
     createCaseToggle(
         "neoCase",
-        "Neo Case",
+        "Neo Case 75T Time",
         game.ReplicatedStorage.RandomEventForCasesThreeneo
     )
 
     createCaseToggle(
         "violetCase",
-        "Violet Case",
+        "Violet Case 500T Time",
         game.ReplicatedStorage.RandomEventForCasesThreevio
     )
 
     createCaseToggle(
         "ghoulCase",
-        "Ghoul Case",
+        "Ghoul Case 1QD Time",
         game.ReplicatedStorage.RandomEventForCasesThreeghoul
     )
 
     createCaseToggle(
         "summerCase",
-        "Summer Case",
+        "Summer Case 1QN Time",
         game.ReplicatedStorage.RandomEventForCasesThreesummer
     )
 
     createCaseToggle(
         "oceanCase",
-        "Ocean Case",
+        "Ocean Case 10QN Time",
         game.ReplicatedStorage.RandomEventForCasesThreeocean
+    )
+	
+    createCaseToggle(
+        "KEYcase",
+        "Key case 50 key",
+        game.ReplicatedStorage.UnboxkeyCase
+    )
+	
+    createCaseToggle(
+        "gem1Case",
+        "Gem1 Case 25 Gems",
+        game.ReplicatedStorage.RandomEventForCasesThreegemone
+    )
+	
+    createCaseToggle(
+        "gem2Case",
+        "gem2 Case 25 Gems",
+        game.ReplicatedStorage.RandomEventForCasesThreegemtwo
+    )
+	
+    createCaseToggle(
+        "gem3Case",
+        "gem3 Case 25 Gems",
+        game.ReplicatedStorage.RandomEventForCasesThreegemthree
     )
 
     local orbSec = tab:Section("Orb", "Left")
@@ -491,7 +514,7 @@ UI.AddTab("Steal Time for Swords", function(tab)
         end
     end)
 
-    local zoneSec = tab:Section("Zones", "Left")
+    local zoneSec = tab:Section("Zones", "Right")
 
     local isKeyZoneTping = false
     local keyZoneCoroutine = nil
@@ -1178,4 +1201,223 @@ UI.AddTab("Steal Time for Swords", function(tab)
         end
     end)
 
+    local antiAFKSec = tab:Section("Anti AFK", "Right")
+
+    local antiAFK = false
+    local antiAFKThread = nil
+    local interval = 0.5
+
+    antiAFKSec:SliderFloat(
+        "antiAFKInterval",
+        "Interval (Sekunden)",
+        0.5,
+        300,
+        interval,
+        "%.1f",
+        function(v)
+            interval = v
+        end
+    )
+
+    antiAFKSec:Toggle(
+        "antiAFK",
+        "Anti AFK",
+        false,
+        function(enabled)
+            antiAFK = enabled
+
+            if enabled then
+                if antiAFKThread then
+                    return
+                end
+
+                antiAFKThread = task.spawn(function()
+                    local antiW = 0x57
+                    local antiS = 0x53
+                    
+                    while antiAFK do
+                        pcall(keypress, antiW)
+                        task.wait(0.05)
+                        pcall(keyrelease, antiW)
+                        
+                        task.wait(0.05)
+                        
+                        pcall(keypress, antiS)
+                        task.wait(0.05)
+                        pcall(keyrelease, antiS)
+                        
+                        task.wait(interval)
+                    end
+
+                    antiAFKThread = nil
+                end)
+            else
+                antiAFK = false
+
+                if antiAFKThread then
+                    task.cancel(antiAFKThread)
+                    antiAFKThread = nil
+                end
+                
+                pcall(keyrelease, 0x57)
+                pcall(keyrelease, 0x53)
+            end
+        end
+    )
+
+    local vaultSec = tab:Section("Deposit / Teleport", "Left")
+
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local Players = game:GetService("Players")
+
+    local player = Players.LocalPlayer
+    local VaultIN = ReplicatedStorage:WaitForChild("VaultIN")
+
+    local RANGE = 20
+    local BEHIND_DISTANCE = 3
+
+    local MIN_X = -40.93
+    local MAX_X = 58.80
+    local MIN_Z = -165.09
+    local MAX_Z = -65.77
+
+    local function getRootVault(plr)
+        local character = plr.Character
+        if character then
+            return character:FindFirstChild("HumanoidRootPart")
+        end
+    end
+
+    local function isAliveVault(character)
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+        return humanoid and humanoid.Health > 0
+    end
+
+    local function isInSafezone(position)
+        return position.X >= MIN_X
+            and position.X <= MAX_X
+            and position.Z >= MIN_Z
+            and position.Z <= MAX_Z
+    end
+
+    local vaultEnabled = false
+    local vaultThread = nil
+
+    vaultSec:Toggle(
+        "vaultIN",
+        "Deposit",
+        false,
+        function(enabled)
+            vaultEnabled = enabled
+
+            if enabled then
+                if vaultThread then
+                    return
+                end
+
+                vaultThread = task.spawn(function()
+                    while vaultEnabled do
+                        local character = player.Character
+                        local root = character and character:FindFirstChild("HumanoidRootPart")
+
+                        if root and isAliveVault(character) and isInSafezone(root.Position) then
+                            VaultIN:FireServer(1e+23)
+                        end
+
+                        task.wait(1)
+                    end
+
+                    vaultThread = nil
+                end)
+            else
+                if vaultThread then
+                    task.cancel(vaultThread)
+                    vaultThread = nil
+                end
+            end
+        end
+    )
+
+    local teleportEnabled = false
+    local teleportThread = nil
+
+    vaultSec:SliderFloat(
+        "enemyRange",
+        "Enemy Range",
+        1,
+        100,
+        RANGE,
+        "%.0f",
+        function(value)
+            RANGE = value
+        end
+    )
+
+    vaultSec:SliderFloat(
+        "behindDistance",
+        "Behind Distance",
+        1,
+        20,
+        BEHIND_DISTANCE,
+        "%.1f",
+        function(value)
+            BEHIND_DISTANCE = value
+        end
+    )
+
+    vaultSec:Toggle(
+        "enemyTeleport",
+        "Enemy Behind TP",
+        false,
+        function(enabled)
+            teleportEnabled = enabled
+
+            if enabled then
+                if teleportThread then
+                    return
+                end
+
+                teleportThread = task.spawn(function()
+                    while teleportEnabled do
+                        local myCharacter = player.Character
+                        local myRoot = getRootVault(player)
+
+                        if myCharacter and myRoot and isAliveVault(myCharacter) and not isInSafezone(myRoot.Position) then
+                            for _, enemy in ipairs(Players:GetPlayers()) do
+                                if not teleportEnabled then
+                                    break
+                                end
+
+                                if enemy ~= player then
+                                    local enemyCharacter = enemy.Character
+                                    local enemyRoot = getRootVault(enemy)
+
+                                    if enemyCharacter and enemyRoot and isAliveVault(enemyCharacter) then
+                                        local distance = (enemyRoot.Position - myRoot.Position).Magnitude
+
+                                        if distance <= RANGE then
+                                            local behindPosition = enemyRoot.Position - enemyRoot.CFrame.LookVector * BEHIND_DISTANCE
+
+                                            if not isInSafezone(behindPosition) then
+                                                myRoot.CFrame = CFrame.lookAt(behindPosition, enemyRoot.Position)
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+
+                        task.wait()
+                    end
+
+                    teleportThread = nil
+                end)
+            else
+                if teleportThread then
+                    task.cancel(teleportThread)
+                    teleportThread = nil
+                end
+            end
+        end
+    )
 end)
