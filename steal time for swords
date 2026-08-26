@@ -1,37 +1,82 @@
 UI.AddTab("Steal TIME for Swords", function(tab)
-  local sec = tab:Section("Cases", "Left")
+   local sec = tab:Section("Cases", "Left")
 
-local caseDelay = 1
-
-sec:SliderFloat("caseDelay", "Case Delay", 0.1, 10, caseDelay, "%.1f", function(v)
-    caseDelay = v
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local OpenCase = nil
+pcall(function()
+    OpenCase = ReplicatedStorage:WaitForChild("OpenCase", 5)
 end)
 
-local OpenCase = game.ReplicatedStorage:WaitForChild("OpenCase")
+local caseDelay = 1
+local caseStates = {}
+local caseThreads = {}
+
+-- Sicherheitsfunktion zum sofortigen Stoppen aller Cases
+local function stopAllCases()
+    for id, state in pairs(caseStates) do
+        caseStates[id] = false
+    end
+    for id, thread in pairs(caseThreads) do
+        if thread then
+            task.cancel(thread)
+            caseThreads[id] = nil
+        end
+    end
+end
+
+sec:SliderFloat(
+    "caseDelay",
+    "Case Delay",
+    0.1,
+    10,
+    caseDelay,
+    "%.1f",
+    function(value)
+        caseDelay = value
+    end
+)
 
 local function createCaseToggle(id, name, caseType)
-    local enabled = false
-    local thread = nil
+    caseStates[id] = false
+    caseThreads[id] = nil
 
-    sec:Toggle(id, name, false, function(state)
-        enabled = state
+    sec:Toggle(id, name, false, function(enabled)
+        caseStates[id] = enabled
 
-        if enabled then
-            if thread then
-                return
+        if not enabled then
+            caseStates[id] = false
+            if caseThreads[id] then
+                task.cancel(caseThreads[id])
+                caseThreads[id] = nil
             end
+            return
+        end
 
-            thread = task.spawn(function()
-                while enabled do
-                    OpenCase:FireServer(caseType, false)
-                    task.wait(caseDelay)
+        if caseThreads[id] then
+            task.cancel(caseThreads[id])
+            caseThreads[id] = nil
+        end
+
+        caseThreads[id] = task.spawn(function()
+            while caseStates[id] do
+                if not caseStates[id] then break end
+                
+                if OpenCase and OpenCase.Parent and caseStates[id] then
+                    pcall(function()
+                        OpenCase:FireServer(caseType, false)
+                    end)
                 end
 
-                thread = nil
-            end)
-        else
-            enabled = false
-        end
+                local waitTime = 0
+                while waitTime < caseDelay and caseStates[id] do
+                    task.wait(0.05)
+                    waitTime = waitTime + 0.05
+                    if not caseStates[id] then break end
+                end
+            end
+
+            caseThreads[id] = nil
+        end)
     end)
 end
 
@@ -44,58 +89,86 @@ createCaseToggle("violetCase", "Violet Case 500T Time", "vio")
 createCaseToggle("ghoulCase", "Ghoul Case 1QD Time", "ghoul")
 createCaseToggle("summerCase", "Summer Case 1QN Time", "summer")
 createCaseToggle("oceanCase", "Ocean Case 10QN Time", "ocean")
-
 createCaseToggle("dualCase", "Dual Case 100QN Time", "dual")
-
 createCaseToggle("gem1Case", "Gem1 Case 25 Gems", "gem1")
 createCaseToggle("gem2Case", "Gem2 Case 25 Gems", "gem2")
 createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
+createCaseToggle("keyCase", "Key Case 50 Key", "key")
+
+-- OFF Button für Cases
+sec:Button("CASES OFF", function()
+    stopAllCases()
+end)
 
     local orbSec = tab:Section("Orb", "Left")
 
     local isOrbCollecting = false
     local orbCoroutine = nil
 
+    local function stopOrbCollect()
+        isOrbCollecting = false
+        if orbCoroutine then
+            task.cancel(orbCoroutine)
+            orbCoroutine = nil
+        end
+    end
+
     orbSec:Toggle("orbCollect", "Orb Collect", false, function(enabled)
         isOrbCollecting = enabled
 
         if enabled then
             if orbCoroutine then
-                return
+                task.cancel(orbCoroutine)
+                orbCoroutine = nil
             end
 
             orbCoroutine = task.spawn(function()
                 while isOrbCollecting do
+                    if not isOrbCollecting then break end
+                    
                     local currentOrbs = {}
 
                     for _, object in pairs(workspace:GetDescendants()) do
+                        if not isOrbCollecting then break end
                         if object:IsA("BasePart") and object.Name == "Orb" then
                             table.insert(currentOrbs, object)
                         end
                     end
 
+                    if not isOrbCollecting then break end
+
                     local player = game.Players.LocalPlayer
                     local character = player.Character
                     local rootPart = character and character:FindFirstChild("HumanoidRootPart")
 
-                    if rootPart then
+                    if rootPart and isOrbCollecting then
                         for _, orb in pairs(currentOrbs) do
-                            if not isOrbCollecting then
-                                break
-                            end
+                            if not isOrbCollecting then break end
 
-                            if orb and orb.Parent then
+                            if orb and orb.Parent and isOrbCollecting then
                                 rootPart.CFrame = orb.CFrame
-                                task.wait(0.05)
+                                local waitTime = 0
+                                while waitTime < 0.05 and isOrbCollecting do
+                                    task.wait(0.01)
+                                    waitTime = waitTime + 0.01
+                                end
                             end
                         end
                     end
 
-                    task.wait(0.5)
+                    if not isOrbCollecting then break end
+
+                    local waitTime = 0
+                    while waitTime < 0.5 and isOrbCollecting do
+                        task.wait(0.1)
+                        waitTime = waitTime + 0.1
+                    end
                 end
 
                 orbCoroutine = nil
             end)
+        else
+            stopOrbCollect()
         end
     end)
 
@@ -117,7 +190,6 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
 
     local lastScan = 0
     local lastMove = 0
-    local lastDebug = 0
 
     local lastPosition = nil
     local stuckTimer = 0
@@ -138,19 +210,13 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
 
     local function getRoot()
         local character = game.Players.LocalPlayer.Character
-        if not character then
-            return nil
-        end
+        if not character then return nil end
         return character:FindFirstChild("HumanoidRootPart")
     end
 
     local function orbCollected(orb)
-        if not orb then
-            return true
-        end
-        if not orb.Parent then
-            return true
-        end
+        if not orb then return true end
+        if not orb.Parent then return true end
         if orb:IsA("BasePart") then
             local size = orb.Size
             if size.X <= 0.05 and size.Y <= 0.05 and size.Z <= 0.05 then
@@ -162,33 +228,32 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
 
     local function scanOrbs()
         local root = getRoot()
-        if not root then
-            return
-        end
+        if not root then return end
 
         local newOrbs = {}
 
         for _, object in ipairs(workspace:GetDescendants()) do
+            if not isLegitOrbCollecting then break end
             if object:IsA("BasePart") and object.Name == "Orb" and object.Parent and not knownOrbs[object] then
                 knownOrbs[object] = true
                 table.insert(newOrbs, object)
             end
         end
 
+        if not isLegitOrbCollecting then return end
+
         table.sort(newOrbs, function(a, b)
-            if not a.Parent then
-                return false
-            end
-            if not b.Parent then
-                return true
-            end
+            if not a.Parent then return false end
+            if not b.Parent then return true end
             local da = (a.Position - root.Position).Magnitude
             local db = (b.Position - root.Position).Magnitude
             return da < db
         end)
 
         for _, orb in ipairs(newOrbs) do
-            table.insert(orbQueue, orb)
+            if isLegitOrbCollecting then
+                table.insert(orbQueue, orb)
+            end
         end
     end
 
@@ -205,9 +270,7 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
 
     local function moveToward(targetPosition, root)
         local camera = workspace.CurrentCamera
-        if not camera then
-            return
-        end
+        if not camera then return end
 
         local offset = targetPosition - root.Position
         local targetDirection = Vector3.new(offset.X, 0, offset.Z)
@@ -225,12 +288,8 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
         forward = Vector3.new(forward.X, 0, forward.Z)
         right = Vector3.new(right.X, 0, right.Z)
 
-        if forward.Magnitude > 0 then
-            forward = forward.Unit
-        end
-        if right.Magnitude > 0 then
-            right = right.Unit
-        end
+        if forward.Magnitude > 0 then forward = forward.Unit end
+        if right.Magnitude > 0 then right = right.Unit end
 
         local forwardAmount = targetDirection:Dot(forward)
         local rightAmount = targetDirection:Dot(right)
@@ -255,9 +314,7 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
     end
 
     local function checkStuck(root)
-        if not root then
-            return false
-        end
+        if not root then return false end
         
         local currentPos = root.Position
         
@@ -298,7 +355,11 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
             press(W)
         end
         
-        task.wait(0.15)
+        local waitTime = 0
+        while waitTime < 0.15 and isLegitOrbCollecting do
+            task.wait(0.01)
+            waitTime = waitTime + 0.01
+        end
         releaseMovement()
         
         stuckTimer = 0
@@ -306,16 +367,34 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
         lastPosition = nil
     end
 
-    orbSec:Toggle("legitOrbCollect", "Legit Orb Collecting", false, function(enabled)
-        isLegitOrbCollecting = enabled
+    local function stopLegitOrbCollect()
+        isLegitOrbCollecting = false
+        releaseMovement()
+        if legitOrbCoroutine then
+            task.cancel(legitOrbCoroutine)
+            legitOrbCoroutine = nil
+        end
+        targetOrb = nil
+        orbQueue = {}
+        knownOrbs = {}
+        lastPosition = nil
+        stuckTimer = 0
+        isStuck = false
+    end
 
+    orbSec:Toggle("legitOrbCollect", "Legit Orb Collecting", false, function(enabled)
         if enabled then
-            if legitOrbCoroutine then
+            if isLegitOrbCollecting and legitOrbCoroutine then
                 return
             end
+            
+            stopLegitOrbCollect()
+            isLegitOrbCollecting = true
 
             legitOrbCoroutine = task.spawn(function()
                 while isLegitOrbCollecting do
+                    if not isLegitOrbCollecting then break end
+                    
                     local root = getRoot()
 
                     if not root then
@@ -330,16 +409,22 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                         continue
                     end
 
+                    if not isLegitOrbCollecting then break end
+
                     if checkStuck(root) then
                         moveForwardLastDirection()
                         task.wait(0.05)
                         continue
                     end
 
+                    if not isLegitOrbCollecting then break end
+
                     if os.clock() - lastScan >= SCAN_INTERVAL then
                         lastScan = os.clock()
                         scanOrbs()
                     end
+
+                    if not isLegitOrbCollecting then break end
 
                     if not targetOrb then
                         targetOrb = getNextOrb()
@@ -356,11 +441,13 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                         continue
                     end
 
+                    if not isLegitOrbCollecting then break end
+
                     if orbCollected(targetOrb) then
                         local reallyCollected = false
                         local checkCount = 0
                         
-                        while checkCount < 3 and not reallyCollected do
+                        while checkCount < 3 and not reallyCollected and isLegitOrbCollecting do
                             task.wait(0.05)
                             checkCount = checkCount + 1
                             
@@ -370,7 +457,7 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                             end
                         end
                         
-                        if not reallyCollected and targetOrb and targetOrb.Parent then
+                        if not reallyCollected and targetOrb and targetOrb.Parent and isLegitOrbCollecting then
                             moveForwardLastDirection()
                             
                             task.wait(0.05)
@@ -391,7 +478,7 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                         else
                             local oldOrb = targetOrb
                             targetOrb = nil
-                            if oldOrb and oldOrb.Parent then
+                            if oldOrb and oldOrb.Parent and isLegitOrbCollecting then
                                 table.insert(orbQueue, 1, oldOrb)
                             end
                             stuckTimer = 0
@@ -404,6 +491,8 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                         continue
                     end
 
+                    if not isLegitOrbCollecting then break end
+
                     local distance = (targetOrb.Position - root.Position).Magnitude
 
                     if distance <= REACH_DISTANCE then
@@ -411,6 +500,8 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                         task.wait(0.05)
                         continue
                     end
+
+                    if not isLegitOrbCollecting then break end
 
                     if os.clock() - lastMove >= MOVE_INTERVAL then
                         lastMove = os.clock()
@@ -430,31 +521,84 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                 legitOrbCoroutine = nil
             end)
         else
-            releaseMovement()
-            targetOrb = nil
-            orbQueue = {}
-            knownOrbs = {}
-            lastPosition = nil
-            stuckTimer = 0
-            isStuck = false
-            if legitOrbCoroutine then
-                task.cancel(legitOrbCoroutine)
-                legitOrbCoroutine = nil
-            end
+            stopLegitOrbCollect()
         end
     end)
 
-    orbSec:Button("Orb Collect OFF", function()
-        if isOrbCollecting then
-            isOrbCollecting = false
-            if orbCoroutine then
-                task.cancel(orbCoroutine)
-                orbCoroutine = nil
-            end
-        end
+    -- OFF Button für Orbs
+    orbSec:Button("ORBS OFF", function()
+        stopOrbCollect()
+        stopLegitOrbCollect()
     end)
 
     local zoneSec = tab:Section("Zones", "Right")
+
+    local function stopZoneTP(zoneType)
+        if zoneType == "key" then
+            isKeyZoneTping = false
+            currentKeyZone = nil
+            if keyZoneCoroutine then
+                task.cancel(keyZoneCoroutine)
+                keyZoneCoroutine = nil
+            end
+        elseif zoneType == "time" then
+            isTimeZoneTping = false
+            currentTimeZone = nil
+            if timeZoneCoroutine then
+                task.cancel(timeZoneCoroutine)
+                timeZoneCoroutine = nil
+            end
+        elseif zoneType == "xp" then
+            isXPZoneTping = false
+            currentXPZone = nil
+            if xpZoneCoroutine then
+                task.cancel(xpZoneCoroutine)
+                xpZoneCoroutine = nil
+            end
+        elseif zoneType == "legitkey" then
+            isLegitKeyZone = false
+            legitReleaseMovement()
+            if legitKeyZoneCoroutine then
+                task.cancel(legitKeyZoneCoroutine)
+                legitKeyZoneCoroutine = nil
+            end
+            legitKeyZoneTarget = nil
+            legitKeyZoneQueue = {}
+            knownKeyZones = {}
+            legitKeyZoneInRange = false
+        elseif zoneType == "legittime" then
+            isLegitTimeZone = false
+            legitReleaseMovement()
+            if legitTimeZoneCoroutine then
+                task.cancel(legitTimeZoneCoroutine)
+                legitTimeZoneCoroutine = nil
+            end
+            legitTimeZoneTarget = nil
+            legitTimeZoneQueue = {}
+            knownTimeZones = {}
+            legitTimeZoneInRange = false
+        elseif zoneType == "legitxp" then
+            isLegitXPZone = false
+            legitReleaseMovement()
+            if legitXPZoneCoroutine then
+                task.cancel(legitXPZoneCoroutine)
+                legitXPZoneCoroutine = nil
+            end
+            legitXPZoneTarget = nil
+            legitXPZoneQueue = {}
+            knownXPZones = {}
+            legitXPZoneInRange = false
+        end
+    end
+
+    local function stopAllZones()
+        stopZoneTP("key")
+        stopZoneTP("time")
+        stopZoneTP("xp")
+        stopZoneTP("legitkey")
+        stopZoneTP("legittime")
+        stopZoneTP("legitxp")
+    end
 
     local isKeyZoneTping = false
     local keyZoneCoroutine = nil
@@ -465,13 +609,16 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
 
         if enabled then
             if keyZoneCoroutine then
-                return
+                task.cancel(keyZoneCoroutine)
+                keyZoneCoroutine = nil
             end
 
             keyZoneCoroutine = task.spawn(function()
                 local player = game.Players.LocalPlayer
 
                 while isKeyZoneTping do
+                    if not isKeyZoneTping then break end
+                    
                     local character = player.Character
 
                     if not character then
@@ -489,13 +636,16 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                     local keyZones = {}
                     local activeZonesFolder = workspace:FindFirstChild("ActiveZones")
 
-                    if activeZonesFolder then
+                    if activeZonesFolder and isKeyZoneTping then
                         for _, obj in ipairs(activeZonesFolder:GetChildren()) do
+                            if not isKeyZoneTping then break end
                             if obj:IsA("Part") and obj.Name:find("KeyZone") then
                                 table.insert(keyZones, obj)
                             end
                         end
                     end
+
+                    if not isKeyZoneTping then break end
 
                     table.sort(keyZones, function(a, b)
                         local distA = (a.Position - humanoidRootPart.Position).Magnitude
@@ -504,9 +654,7 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                     end)
 
                     for _, keyZone in ipairs(keyZones) do
-                        if not isKeyZoneTping then
-                            break
-                        end
+                        if not isKeyZoneTping then break end
 
                         if keyZone and keyZone:IsA("Part") and keyZone.Parent == activeZonesFolder then
                             currentKeyZone = keyZone
@@ -531,14 +679,16 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                         end
                     end
 
-                    task.wait(0.3)
+                    if isKeyZoneTping then
+                        task.wait(0.3)
+                    end
                 end
 
                 keyZoneCoroutine = nil
                 currentKeyZone = nil
             end)
         else
-            currentKeyZone = nil
+            stopZoneTP("key")
         end
     end)
 
@@ -551,13 +701,16 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
 
         if enabled then
             if timeZoneCoroutine then
-                return
+                task.cancel(timeZoneCoroutine)
+                timeZoneCoroutine = nil
             end
 
             timeZoneCoroutine = task.spawn(function()
                 local player = game.Players.LocalPlayer
 
                 while isTimeZoneTping do
+                    if not isTimeZoneTping then break end
+                    
                     local character = player.Character
 
                     if not character then
@@ -575,13 +728,16 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                     local timeZones = {}
                     local activeZonesFolder = workspace:FindFirstChild("ActiveZones")
 
-                    if activeZonesFolder then
+                    if activeZonesFolder and isTimeZoneTping then
                         for _, obj in ipairs(activeZonesFolder:GetChildren()) do
+                            if not isTimeZoneTping then break end
                             if obj:IsA("Part") and obj.Name:find("TimeZone") then
                                 table.insert(timeZones, obj)
                             end
                         end
                     end
+
+                    if not isTimeZoneTping then break end
 
                     table.sort(timeZones, function(a, b)
                         local distA = (a.Position - humanoidRootPart.Position).Magnitude
@@ -590,9 +746,7 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                     end)
 
                     for _, timeZone in ipairs(timeZones) do
-                        if not isTimeZoneTping then
-                            break
-                        end
+                        if not isTimeZoneTping then break end
 
                         if timeZone and timeZone:IsA("Part") and timeZone.Parent == activeZonesFolder then
                             currentTimeZone = timeZone
@@ -617,14 +771,16 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                         end
                     end
 
-                    task.wait(0.3)
+                    if isTimeZoneTping then
+                        task.wait(0.3)
+                    end
                 end
 
                 timeZoneCoroutine = nil
                 currentTimeZone = nil
             end)
         else
-            currentTimeZone = nil
+            stopZoneTP("time")
         end
     end)
 
@@ -637,13 +793,16 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
 
         if enabled then
             if xpZoneCoroutine then
-                return
+                task.cancel(xpZoneCoroutine)
+                xpZoneCoroutine = nil
             end
 
             xpZoneCoroutine = task.spawn(function()
                 local player = game.Players.LocalPlayer
 
                 while isXPZoneTping do
+                    if not isXPZoneTping then break end
+                    
                     local character = player.Character
 
                     if not character then
@@ -661,13 +820,16 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                     local xpZones = {}
                     local activeZonesFolder = workspace:FindFirstChild("ActiveZones")
 
-                    if activeZonesFolder then
+                    if activeZonesFolder and isXPZoneTping then
                         for _, obj in ipairs(activeZonesFolder:GetChildren()) do
+                            if not isXPZoneTping then break end
                             if obj:IsA("Part") and obj.Name:find("XPZone") then
                                 table.insert(xpZones, obj)
                             end
                         end
                     end
+
+                    if not isXPZoneTping then break end
 
                     table.sort(xpZones, function(a, b)
                         local distA = (a.Position - humanoidRootPart.Position).Magnitude
@@ -676,9 +838,7 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                     end)
 
                     for _, xpZone in ipairs(xpZones) do
-                        if not isXPZoneTping then
-                            break
-                        end
+                        if not isXPZoneTping then break end
 
                         if xpZone and xpZone:IsA("Part") and xpZone.Parent == activeZonesFolder then
                             currentXPZone = xpZone
@@ -703,17 +863,20 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                         end
                     end
 
-                    task.wait(0.3)
+                    if isXPZoneTping then
+                        task.wait(0.3)
+                    end
                 end
 
                 xpZoneCoroutine = nil
                 currentXPZone = nil
             end)
         else
-            currentXPZone = nil
+            stopZoneTP("xp")
         end
     end)
 
+    -- Legit Zone Funktionen
     local function legitReleaseMovement()
         pcall(keyrelease, W)
         pcall(keyrelease, A)
@@ -727,27 +890,19 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
 
     local function legitGetRoot()
         local character = game.Players.LocalPlayer.Character
-        if not character then
-            return nil
-        end
+        if not character then return nil end
         return character:FindFirstChild("HumanoidRootPart")
     end
 
     local function legitZoneExists(zone)
-        if not zone then
-            return false
-        end
-        if not zone.Parent then
-            return false
-        end
+        if not zone then return false end
+        if not zone.Parent then return false end
         return true
     end
 
     local function legitMoveToward(targetPosition, root)
         local camera = workspace.CurrentCamera
-        if not camera then
-            return
-        end
+        if not camera then return end
 
         local offset = targetPosition - root.Position
         local targetDirection = Vector3.new(offset.X, 0, offset.Z)
@@ -765,12 +920,8 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
         forward = Vector3.new(forward.X, 0, forward.Z)
         right = Vector3.new(right.X, 0, right.Z)
 
-        if forward.Magnitude > 0 then
-            forward = forward.Unit
-        end
-        if right.Magnitude > 0 then
-            right = right.Unit
-        end
+        if forward.Magnitude > 0 then forward = forward.Unit end
+        if right.Magnitude > 0 then right = right.Unit end
 
         local forwardAmount = targetDirection:Dot(forward)
         local rightAmount = targetDirection:Dot(right)
@@ -804,11 +955,14 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
 
         if enabled then
             if legitKeyZoneCoroutine then
-                return
+                task.cancel(legitKeyZoneCoroutine)
+                legitKeyZoneCoroutine = nil
             end
 
             legitKeyZoneCoroutine = task.spawn(function()
                 while isLegitKeyZone do
+                    if not isLegitKeyZone then break end
+                    
                     local root = legitGetRoot()
 
                     if not root then
@@ -821,11 +975,14 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                         continue
                     end
 
+                    if not isLegitKeyZone then break end
+
                     if os.clock() - legitKeyLastScan >= SCAN_INTERVAL then
                         legitKeyLastScan = os.clock()
                         local activeZonesFolder = workspace:FindFirstChild("ActiveZones")
-                        if activeZonesFolder then
+                        if activeZonesFolder and isLegitKeyZone then
                             for _, obj in ipairs(activeZonesFolder:GetChildren()) do
+                                if not isLegitKeyZone then break end
                                 if obj:IsA("Part") and obj.Name:find("KeyZone") and obj.Parent and not knownKeyZones[obj] then
                                     knownKeyZones[obj] = true
                                     table.insert(legitKeyZoneQueue, obj)
@@ -833,6 +990,8 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                             end
                         end
                     end
+
+                    if not isLegitKeyZone then break end
 
                     if not legitKeyZoneTarget then
                         while #legitKeyZoneQueue > 0 do
@@ -850,6 +1009,8 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                         task.wait(0.2)
                         continue
                     end
+
+                    if not isLegitKeyZone then break end
 
                     if not legitZoneExists(legitKeyZoneTarget) then
                         knownKeyZones[legitKeyZoneTarget] = nil
@@ -879,6 +1040,8 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                         legitKeyZoneInRange = false
                     end
 
+                    if not isLegitKeyZone then break end
+
                     if os.clock() - legitKeyLastMove >= MOVE_INTERVAL then
                         legitKeyLastMove = os.clock()
                         legitMoveToward(legitKeyZoneTarget.Position, root)
@@ -895,15 +1058,7 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                 legitKeyZoneCoroutine = nil
             end)
         else
-            legitReleaseMovement()
-            legitKeyZoneTarget = nil
-            legitKeyZoneQueue = {}
-            knownKeyZones = {}
-            legitKeyZoneInRange = false
-            if legitKeyZoneCoroutine then
-                task.cancel(legitKeyZoneCoroutine)
-                legitKeyZoneCoroutine = nil
-            end
+            stopZoneTP("legitkey")
         end
     end)
 
@@ -921,11 +1076,14 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
 
         if enabled then
             if legitTimeZoneCoroutine then
-                return
+                task.cancel(legitTimeZoneCoroutine)
+                legitTimeZoneCoroutine = nil
             end
 
             legitTimeZoneCoroutine = task.spawn(function()
                 while isLegitTimeZone do
+                    if not isLegitTimeZone then break end
+                    
                     local root = legitGetRoot()
 
                     if not root then
@@ -938,11 +1096,14 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                         continue
                     end
 
+                    if not isLegitTimeZone then break end
+
                     if os.clock() - legitTimeLastScan >= SCAN_INTERVAL then
                         legitTimeLastScan = os.clock()
                         local activeZonesFolder = workspace:FindFirstChild("ActiveZones")
-                        if activeZonesFolder then
+                        if activeZonesFolder and isLegitTimeZone then
                             for _, obj in ipairs(activeZonesFolder:GetChildren()) do
+                                if not isLegitTimeZone then break end
                                 if obj:IsA("Part") and obj.Name:find("TimeZone") and obj.Parent and not knownTimeZones[obj] then
                                     knownTimeZones[obj] = true
                                     table.insert(legitTimeZoneQueue, obj)
@@ -950,6 +1111,8 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                             end
                         end
                     end
+
+                    if not isLegitTimeZone then break end
 
                     if not legitTimeZoneTarget then
                         while #legitTimeZoneQueue > 0 do
@@ -967,6 +1130,8 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                         task.wait(0.2)
                         continue
                     end
+
+                    if not isLegitTimeZone then break end
 
                     if not legitZoneExists(legitTimeZoneTarget) then
                         knownTimeZones[legitTimeZoneTarget] = nil
@@ -996,6 +1161,8 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                         legitTimeZoneInRange = false
                     end
 
+                    if not isLegitTimeZone then break end
+
                     if os.clock() - legitTimeLastMove >= MOVE_INTERVAL then
                         legitTimeLastMove = os.clock()
                         legitMoveToward(legitTimeZoneTarget.Position, root)
@@ -1012,15 +1179,7 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                 legitTimeZoneCoroutine = nil
             end)
         else
-            legitReleaseMovement()
-            legitTimeZoneTarget = nil
-            legitTimeZoneQueue = {}
-            knownTimeZones = {}
-            legitTimeZoneInRange = false
-            if legitTimeZoneCoroutine then
-                task.cancel(legitTimeZoneCoroutine)
-                legitTimeZoneCoroutine = nil
-            end
+            stopZoneTP("legittime")
         end
     end)
 
@@ -1038,11 +1197,14 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
 
         if enabled then
             if legitXPZoneCoroutine then
-                return
+                task.cancel(legitXPZoneCoroutine)
+                legitXPZoneCoroutine = nil
             end
 
             legitXPZoneCoroutine = task.spawn(function()
                 while isLegitXPZone do
+                    if not isLegitXPZone then break end
+                    
                     local root = legitGetRoot()
 
                     if not root then
@@ -1055,11 +1217,14 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                         continue
                     end
 
+                    if not isLegitXPZone then break end
+
                     if os.clock() - legitXPLastScan >= SCAN_INTERVAL then
                         legitXPLastScan = os.clock()
                         local activeZonesFolder = workspace:FindFirstChild("ActiveZones")
-                        if activeZonesFolder then
+                        if activeZonesFolder and isLegitXPZone then
                             for _, obj in ipairs(activeZonesFolder:GetChildren()) do
+                                if not isLegitXPZone then break end
                                 if obj:IsA("Part") and obj.Name:find("XPZone") and obj.Parent and not knownXPZones[obj] then
                                     knownXPZones[obj] = true
                                     table.insert(legitXPZoneQueue, obj)
@@ -1067,6 +1232,8 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                             end
                         end
                     end
+
+                    if not isLegitXPZone then break end
 
                     if not legitXPZoneTarget then
                         while #legitXPZoneQueue > 0 do
@@ -1084,6 +1251,8 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                         task.wait(0.2)
                         continue
                     end
+
+                    if not isLegitXPZone then break end
 
                     if not legitZoneExists(legitXPZoneTarget) then
                         knownXPZones[legitXPZoneTarget] = nil
@@ -1113,6 +1282,8 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                         legitXPZoneInRange = false
                     end
 
+                    if not isLegitXPZone then break end
+
                     if os.clock() - legitXPLastMove >= MOVE_INTERVAL then
                         legitXPLastMove = os.clock()
                         legitMoveToward(legitXPZoneTarget.Position, root)
@@ -1129,23 +1300,31 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                 legitXPZoneCoroutine = nil
             end)
         else
-            legitReleaseMovement()
-            legitXPZoneTarget = nil
-            legitXPZoneQueue = {}
-            knownXPZones = {}
-            legitXPZoneInRange = false
-            if legitXPZoneCoroutine then
-                task.cancel(legitXPZoneCoroutine)
-                legitXPZoneCoroutine = nil
-            end
+            stopZoneTP("legitxp")
         end
     end)
 
+    -- OFF Button für Zonen
+    zoneSec:Button("ZONES OFF", function()
+        stopAllZones()
+    end)
+
+    -- Anti AFK
     local antiAFKSec = tab:Section("Anti AFK", "Right")
 
     local antiAFK = false
     local antiAFKThread = nil
     local interval = 0.5
+
+    local function stopAntiAFK()
+        antiAFK = false
+        if antiAFKThread then
+            task.cancel(antiAFKThread)
+            antiAFKThread = nil
+        end
+        pcall(keyrelease, 0x57)
+        pcall(keyrelease, 0x53)
+    end
 
     antiAFKSec:SliderFloat(
         "antiAFKInterval",
@@ -1168,7 +1347,8 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
 
             if enabled then
                 if antiAFKThread then
-                    return
+                    task.cancel(antiAFKThread)
+                    antiAFKThread = nil
                 end
 
                 antiAFKThread = task.spawn(function()
@@ -1176,42 +1356,51 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                     local antiS = 0x53
                     
                     while antiAFK do
+                        if not antiAFK then break end
+                        
                         pcall(keypress, antiW)
                         task.wait(0.05)
                         pcall(keyrelease, antiW)
                         
                         task.wait(0.05)
                         
+                        if not antiAFK then break end
+                        
                         pcall(keypress, antiS)
                         task.wait(0.05)
                         pcall(keyrelease, antiS)
                         
-                        task.wait(interval)
+                        local waitTime = 0
+                        while waitTime < interval and antiAFK do
+                            task.wait(0.1)
+                            waitTime = waitTime + 0.1
+                            if not antiAFK then break end
+                        end
                     end
 
                     antiAFKThread = nil
                 end)
             else
-                antiAFK = false
-
-                if antiAFKThread then
-                    task.cancel(antiAFKThread)
-                    antiAFKThread = nil
-                end
-                
-                pcall(keyrelease, 0x57)
-                pcall(keyrelease, 0x53)
+                stopAntiAFK()
             end
         end
     )
 
+    -- OFF Button für Anti AFK
+    antiAFKSec:Button("ANTI AFK OFF", function()
+        stopAntiAFK()
+    end)
+
+    -- Deposit/Teleport
     local vaultSec = tab:Section("Deposit / Teleport", "Left")
 
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
     local Players = game:GetService("Players")
-
     local player = Players.LocalPlayer
-    local VaultIN = ReplicatedStorage:WaitForChild("VaultIN")
+    
+    local VaultIN = nil
+    pcall(function()
+        VaultIN = game:GetService("ReplicatedStorage"):WaitForChild("VaultIN", 5)
+    end)
 
     local RANGE = 20
     local BEHIND_DISTANCE = 3
@@ -1243,6 +1432,14 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
     local vaultEnabled = false
     local vaultThread = nil
 
+    local function stopVault()
+        vaultEnabled = false
+        if vaultThread then
+            task.cancel(vaultThread)
+            vaultThread = nil
+        end
+    end
+
     vaultSec:Toggle(
         "vaultIN",
         "Deposit",
@@ -1251,35 +1448,61 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
             vaultEnabled = enabled
 
             if enabled then
-                if vaultThread then
+                if not VaultIN then
+                    pcall(function()
+                        VaultIN = game:GetService("ReplicatedStorage"):FindFirstChild("VaultIN")
+                    end)
+                end
+                
+                if not VaultIN then
+                    vaultEnabled = false
                     return
+                end
+                
+                if vaultThread then
+                    task.cancel(vaultThread)
+                    vaultThread = nil
                 end
 
                 vaultThread = task.spawn(function()
                     while vaultEnabled do
+                        if not vaultEnabled then break end
+                        
                         local character = player.Character
                         local root = character and character:FindFirstChild("HumanoidRootPart")
 
-                        if root and isAliveVault(character) and isInSafezone(root.Position) then
-                            VaultIN:FireServer(1e+23)
+                        if root and isAliveVault(character) and isInSafezone(root.Position) and vaultEnabled then
+                            pcall(function()
+                                VaultIN:FireServer(1e+23)
+                            end)
                         end
 
-                        task.wait(1)
+                        local waitTime = 0
+                        while waitTime < 1 and vaultEnabled do
+                            task.wait(0.1)
+                            waitTime = waitTime + 0.1
+                            if not vaultEnabled then break end
+                        end
                     end
 
                     vaultThread = nil
                 end)
             else
-                if vaultThread then
-                    task.cancel(vaultThread)
-                    vaultThread = nil
-                end
+                stopVault()
             end
         end
     )
 
     local teleportEnabled = false
     local teleportThread = nil
+
+    local function stopTeleport()
+        teleportEnabled = false
+        if teleportThread then
+            task.cancel(teleportThread)
+            teleportThread = nil
+        end
+    end
 
     vaultSec:SliderFloat(
         "enemyRange",
@@ -1314,19 +1537,20 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
 
             if enabled then
                 if teleportThread then
-                    return
+                    task.cancel(teleportThread)
+                    teleportThread = nil
                 end
 
                 teleportThread = task.spawn(function()
                     while teleportEnabled do
+                        if not teleportEnabled then break end
+                        
                         local myCharacter = player.Character
                         local myRoot = getRootVault(player)
 
-                        if myCharacter and myRoot and isAliveVault(myCharacter) and not isInSafezone(myRoot.Position) then
+                        if myCharacter and myRoot and isAliveVault(myCharacter) and not isInSafezone(myRoot.Position) and teleportEnabled then
                             for _, enemy in ipairs(Players:GetPlayers()) do
-                                if not teleportEnabled then
-                                    break
-                                end
+                                if not teleportEnabled then break end
 
                                 if enemy ~= player then
                                     local enemyCharacter = enemy.Character
@@ -1338,7 +1562,7 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                                         if distance <= RANGE then
                                             local behindPosition = enemyRoot.Position - enemyRoot.CFrame.LookVector * BEHIND_DISTANCE
 
-                                            if not isInSafezone(behindPosition) then
+                                            if not isInSafezone(behindPosition) and teleportEnabled then
                                                 myRoot.CFrame = CFrame.lookAt(behindPosition, enemyRoot.Position)
                                             end
                                         end
@@ -1353,11 +1577,27 @@ createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
                     teleportThread = nil
                 end)
             else
-                if teleportThread then
-                    task.cancel(teleportThread)
-                    teleportThread = nil
-                end
+                stopTeleport()
             end
         end
     )
+
+    -- OFF Button für Vault/Teleport
+    vaultSec:Button("VAULT/TELEPORT OFF", function()
+        stopVault()
+        stopTeleport()
+    end)
+
+    -- ALL OFF Button
+    tab:Button("ALL OFF", function()
+        stopAllCases()
+        stopOrbCollect()
+        stopLegitOrbCollect()
+        stopAllZones()
+        stopAntiAFK()
+        stopVault()
+        stopTeleport()
+    end)
 end)
+
+game.ReplicatedStorage.UnboxkeyCase:FireServer()
