@@ -1,115 +1,55 @@
 UI.AddTab("Steal TIME for Swords", function(tab)
-    local sec = tab:Section("Cases", "Left")
+  local sec = tab:Section("Cases", "Left")
 
-    local caseDelay = 1
+local caseDelay = 1
 
-    sec:SliderFloat("caseDelay", "Case Delay", 0.1, 10, caseDelay, "%.1f", function(v)
-        caseDelay = v
-    end)
+sec:SliderFloat("caseDelay", "Case Delay", 0.1, 10, caseDelay, "%.1f", function(v)
+    caseDelay = v
+end)
 
-    local function createCaseToggle(id, name, remote)
-        local enabled = false
-        local thread = nil
+local OpenCase = game.ReplicatedStorage:WaitForChild("OpenCase")
 
-        sec:Toggle(id, name, false, function(state)
-            enabled = state
+local function createCaseToggle(id, name, caseType)
+    local enabled = false
+    local thread = nil
 
-            if enabled then
-                if thread then
-                    return
+    sec:Toggle(id, name, false, function(state)
+        enabled = state
+
+        if enabled then
+            if thread then
+                return
+            end
+
+            thread = task.spawn(function()
+                while enabled do
+                    OpenCase:FireServer(caseType, false)
+                    task.wait(caseDelay)
                 end
 
-                thread = task.spawn(function()
-                    while enabled do
-                        remote:FireServer()
-                        task.wait(caseDelay)
-                    end
+                thread = nil
+            end)
+        else
+            enabled = false
+        end
+    end)
+end
 
-                    thread = nil
-                end)
-            else
-                enabled = false
-            end
-        end)
-    end
+createCaseToggle("rainbowCase", "Rainbow Case 50K Time", "rgb")
+createCaseToggle("frostCase", "Frost Case 1M Time", "frost")
+createCaseToggle("katanaCase", "Katana Case 1B Time", "katana")
+createCaseToggle("oblivionCase", "Oblivion Case 10T Time", "obliv")
+createCaseToggle("neoCase", "Neo Case 75T Time", "neo")
+createCaseToggle("violetCase", "Violet Case 500T Time", "vio")
+createCaseToggle("ghoulCase", "Ghoul Case 1QD Time", "ghoul")
+createCaseToggle("summerCase", "Summer Case 1QN Time", "summer")
+createCaseToggle("oceanCase", "Ocean Case 10QN Time", "ocean")
 
-    createCaseToggle(
-        "rainbowCase",
-        "Rainbow Case 50K Time",
-        game.ReplicatedStorage.RandomEventForCasesThree
-    )
+createCaseToggle("dualCase", "Dual Case 100QN Time", "dual")
 
-    createCaseToggle(
-        "frostCase",
-        "Frost Case 1M  Time",
-        game.ReplicatedStorage.RandomEventForCasesThreefrost
-    )
-
-    createCaseToggle(
-        "katanaCase",
-        "Katana Case 1B  Time",
-        game.ReplicatedStorage.RandomEventForCasesThreekatana
-    )
-
-    createCaseToggle(
-        "oblivionCase",
-        "Oblivion Case 10T Time",
-        game.ReplicatedStorage.RandomEventForCasesThreeobli
-    )
-
-    createCaseToggle(
-        "neoCase",
-        "Neo Case 75T Time",
-        game.ReplicatedStorage.RandomEventForCasesThreeneo
-    )
-
-    createCaseToggle(
-        "violetCase",
-        "Violet Case 500T Time",
-        game.ReplicatedStorage.RandomEventForCasesThreevio
-    )
-
-    createCaseToggle(
-        "ghoulCase",
-        "Ghoul Case 1QD Time",
-        game.ReplicatedStorage.RandomEventForCasesThreeghoul
-    )
-
-    createCaseToggle(
-        "summerCase",
-        "Summer Case 1QN Time",
-        game.ReplicatedStorage.RandomEventForCasesThreesummer
-    )
-
-    createCaseToggle(
-        "oceanCase",
-        "Ocean Case 10QN Time",
-        game.ReplicatedStorage.RandomEventForCasesThreeocean
-    )
-	
-    createCaseToggle(
-        "KEYcase",
-        "Key case 50 key",
-        game.ReplicatedStorage.UnboxkeyCase
-    )
-	
-    createCaseToggle(
-        "gem1Case",
-        "Gem1 Case 25 Gems",
-        game.ReplicatedStorage.RandomEventForCasesThreegemone
-    )
-	
-    createCaseToggle(
-        "gem2Case",
-        "gem2 Case 25 Gems",
-        game.ReplicatedStorage.RandomEventForCasesThreegemtwo
-    )
-	
-    createCaseToggle(
-        "gem3Case",
-        "gem3 Case 25 Gems",
-        game.ReplicatedStorage.RandomEventForCasesThreegemthree
-    )
+createCaseToggle("gem1Case", "Gem1 Case 25 Gems", "gem1")
+createCaseToggle("gem2Case", "Gem2 Case 25 Gems", "gem2")
+createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
 
     local orbSec = tab:Section("Orb", "Left")
 
