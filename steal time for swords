@@ -93,7 +93,6 @@ createCaseToggle("dualCase", "Dual Case 100QN Time", "dual")
 createCaseToggle("gem1Case", "Gem1 Case 25 Gems", "gem1")
 createCaseToggle("gem2Case", "Gem2 Case 25 Gems", "gem2")
 createCaseToggle("gem3Case", "Gem3 Case 25 Gems", "gem3")
-createCaseToggle("keyCase", "Key Case 50 Key", "key")
 
 -- OFF Button für Cases
 sec:Button("CASES OFF", function()
@@ -533,6 +532,7 @@ end)
 
     local zoneSec = tab:Section("Zones", "Right")
 
+    -- Zone TP Funktionen - teleportiert jede Sekunde zur nächsten Zone
     local function stopZoneTP(zoneType)
         if zoneType == "key" then
             isKeyZoneTping = false
@@ -600,6 +600,7 @@ end)
         stopZoneTP("legitxp")
     end
 
+    -- KEY ZONE TP - Teleportiert jede Sekunde zur nächsten KeyZone
     local isKeyZoneTping = false
     local keyZoneCoroutine = nil
     local currentKeyZone = nil
@@ -620,14 +621,12 @@ end)
                     if not isKeyZoneTping then break end
                     
                     local character = player.Character
-
                     if not character then
                         task.wait(0.5)
                         continue
                     end
 
                     local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-
                     if not humanoidRootPart then
                         task.wait(0.5)
                         continue
@@ -647,40 +646,26 @@ end)
 
                     if not isKeyZoneTping then break end
 
-                    table.sort(keyZones, function(a, b)
-                        local distA = (a.Position - humanoidRootPart.Position).Magnitude
-                        local distB = (b.Position - humanoidRootPart.Position).Magnitude
-                        return distA < distB
-                    end)
+                    if #keyZones > 0 then
+                        table.sort(keyZones, function(a, b)
+                            local distA = (a.Position - humanoidRootPart.Position).Magnitude
+                            local distB = (b.Position - humanoidRootPart.Position).Magnitude
+                            return distA < distB
+                        end)
 
-                    for _, keyZone in ipairs(keyZones) do
-                        if not isKeyZoneTping then break end
-
-                        if keyZone and keyZone:IsA("Part") and keyZone.Parent == activeZonesFolder then
-                            currentKeyZone = keyZone
-                            local position = keyZone.Position + Vector3.new(0, 5, 0)
+                        local nearestZone = keyZones[1]
+                        if nearestZone and nearestZone:IsA("Part") and nearestZone.Parent == activeZonesFolder then
+                            currentKeyZone = nearestZone
+                            local position = nearestZone.Position + Vector3.new(0, 5, 0)
                             humanoidRootPart.CFrame = CFrame.new(position.X, position.Y, position.Z)
-                            
-                            local isInRange = false
-                            while isKeyZoneTping and keyZone and keyZone.Parent == activeZonesFolder do
-                                local distance = (humanoidRootPart.Position - keyZone.Position).Magnitude
-                                if distance <= 10 then
-                                    isInRange = true
-                                    break
-                                end
-                                task.wait(0.1)
-                            end
-                            
-                            while isKeyZoneTping and isInRange and keyZone and keyZone.Parent == activeZonesFolder do
-                                task.wait(0.5)
-                            end
-                            
-                            currentKeyZone = nil
                         end
                     end
 
-                    if isKeyZoneTping then
-                        task.wait(0.3)
+                    local waitTime = 0
+                    while waitTime < 1 and isKeyZoneTping do
+                        task.wait(0.1)
+                        waitTime = waitTime + 0.1
+                        if not isKeyZoneTping then break end
                     end
                 end
 
@@ -692,6 +677,7 @@ end)
         end
     end)
 
+    -- TIME ZONE TP - Teleportiert jede Sekunde zur nächsten TimeZone
     local isTimeZoneTping = false
     local timeZoneCoroutine = nil
     local currentTimeZone = nil
@@ -712,14 +698,12 @@ end)
                     if not isTimeZoneTping then break end
                     
                     local character = player.Character
-
                     if not character then
                         task.wait(0.5)
                         continue
                     end
 
                     local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-
                     if not humanoidRootPart then
                         task.wait(0.5)
                         continue
@@ -739,40 +723,26 @@ end)
 
                     if not isTimeZoneTping then break end
 
-                    table.sort(timeZones, function(a, b)
-                        local distA = (a.Position - humanoidRootPart.Position).Magnitude
-                        local distB = (b.Position - humanoidRootPart.Position).Magnitude
-                        return distA < distB
-                    end)
+                    if #timeZones > 0 then
+                        table.sort(timeZones, function(a, b)
+                            local distA = (a.Position - humanoidRootPart.Position).Magnitude
+                            local distB = (b.Position - humanoidRootPart.Position).Magnitude
+                            return distA < distB
+                        end)
 
-                    for _, timeZone in ipairs(timeZones) do
-                        if not isTimeZoneTping then break end
-
-                        if timeZone and timeZone:IsA("Part") and timeZone.Parent == activeZonesFolder then
-                            currentTimeZone = timeZone
-                            local position = timeZone.Position + Vector3.new(0, 5, 0)
+                        local nearestZone = timeZones[1]
+                        if nearestZone and nearestZone:IsA("Part") and nearestZone.Parent == activeZonesFolder then
+                            currentTimeZone = nearestZone
+                            local position = nearestZone.Position + Vector3.new(0, 5, 0)
                             humanoidRootPart.CFrame = CFrame.new(position.X, position.Y, position.Z)
-                            
-                            local isInRange = false
-                            while isTimeZoneTping and timeZone and timeZone.Parent == activeZonesFolder do
-                                local distance = (humanoidRootPart.Position - timeZone.Position).Magnitude
-                                if distance <= 10 then
-                                    isInRange = true
-                                    break
-                                end
-                                task.wait(0.1)
-                            end
-                            
-                            while isTimeZoneTping and isInRange and timeZone and timeZone.Parent == activeZonesFolder do
-                                task.wait(0.5)
-                            end
-                            
-                            currentTimeZone = nil
                         end
                     end
 
-                    if isTimeZoneTping then
-                        task.wait(0.3)
+                    local waitTime = 0
+                    while waitTime < 1 and isTimeZoneTping do
+                        task.wait(0.1)
+                        waitTime = waitTime + 0.1
+                        if not isTimeZoneTping then break end
                     end
                 end
 
@@ -784,11 +754,12 @@ end)
         end
     end)
 
+    -- XP ZONE TP - Teleportiert jede Sekunde zur nächsten XPZone
     local isXPZoneTping = false
     local xpZoneCoroutine = nil
     local currentXPZone = nil
 
-    zoneSec:Toggle("xpzoneTP", "XP Zone TP", false, function(enabled)
+    zoneSec:Toggle("xpzoneTP", "XP Zone Tp", false, function(enabled)
         isXPZoneTping = enabled
 
         if enabled then
@@ -804,14 +775,12 @@ end)
                     if not isXPZoneTping then break end
                     
                     local character = player.Character
-
                     if not character then
                         task.wait(0.5)
                         continue
                     end
 
                     local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-
                     if not humanoidRootPart then
                         task.wait(0.5)
                         continue
@@ -831,40 +800,26 @@ end)
 
                     if not isXPZoneTping then break end
 
-                    table.sort(xpZones, function(a, b)
-                        local distA = (a.Position - humanoidRootPart.Position).Magnitude
-                        local distB = (b.Position - humanoidRootPart.Position).Magnitude
-                        return distA < distB
-                    end)
+                    if #xpZones > 0 then
+                        table.sort(xpZones, function(a, b)
+                            local distA = (a.Position - humanoidRootPart.Position).Magnitude
+                            local distB = (b.Position - humanoidRootPart.Position).Magnitude
+                            return distA < distB
+                        end)
 
-                    for _, xpZone in ipairs(xpZones) do
-                        if not isXPZoneTping then break end
-
-                        if xpZone and xpZone:IsA("Part") and xpZone.Parent == activeZonesFolder then
-                            currentXPZone = xpZone
-                            local position = xpZone.Position + Vector3.new(0, 5, 0)
+                        local nearestZone = xpZones[1]
+                        if nearestZone and nearestZone:IsA("Part") and nearestZone.Parent == activeZonesFolder then
+                            currentXPZone = nearestZone
+                            local position = nearestZone.Position + Vector3.new(0, 5, 0)
                             humanoidRootPart.CFrame = CFrame.new(position.X, position.Y, position.Z)
-                            
-                            local isInRange = false
-                            while isXPZoneTping and xpZone and xpZone.Parent == activeZonesFolder do
-                                local distance = (humanoidRootPart.Position - xpZone.Position).Magnitude
-                                if distance <= 10 then
-                                    isInRange = true
-                                    break
-                                end
-                                task.wait(0.1)
-                            end
-                            
-                            while isXPZoneTping and isInRange and xpZone and xpZone.Parent == activeZonesFolder do
-                                task.wait(0.5)
-                            end
-                            
-                            currentXPZone = nil
                         end
                     end
 
-                    if isXPZoneTping then
-                        task.wait(0.3)
+                    local waitTime = 0
+                    while waitTime < 1 and isXPZoneTping do
+                        task.wait(0.1)
+                        waitTime = waitTime + 0.1
+                        if not isXPZoneTping then break end
                     end
                 end
 
@@ -876,7 +831,7 @@ end)
         end
     end)
 
-    -- Legit Zone Funktionen
+    -- Legit Zone Funktionen (unverändert)
     local function legitReleaseMovement()
         pcall(keyrelease, W)
         pcall(keyrelease, A)
@@ -941,6 +896,7 @@ end)
         end
     end
 
+    -- Legit Key Zone
     local isLegitKeyZone = false
     local legitKeyZoneCoroutine = nil
     local legitKeyZoneTarget = nil
@@ -1062,6 +1018,7 @@ end)
         end
     end)
 
+    -- Legit Time Zone
     local isLegitTimeZone = false
     local legitTimeZoneCoroutine = nil
     local legitTimeZoneTarget = nil
@@ -1183,6 +1140,7 @@ end)
         end
     end)
 
+    -- Legit XP Zone
     local isLegitXPZone = false
     local legitXPZoneCoroutine = nil
     local legitXPZoneTarget = nil
@@ -1599,5 +1557,3 @@ end)
         stopTeleport()
     end)
 end)
-
-game.ReplicatedStorage.UnboxkeyCase:FireServer()
